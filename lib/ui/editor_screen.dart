@@ -16,8 +16,36 @@ import 'package:uuid/uuid.dart';
 import '../models/editor_layer.dart';
 import '../models/editor_project.dart';
 import '../services/render_service.dart';
+import '../services/image_service.dart';
 import '../services/project_store.dart';
 import '../state/app_state.dart';
+
+const _fontFamilies = <String>[
+  'Cairo',
+  'Almarai',
+  'Alexandria',
+  'Amiri',
+  'Changa',
+  'Fustat',
+  'Mada',
+  'Harmattan',
+  'Kufam',
+  'Marhey',
+  'Oi',
+  'Rakkas',
+  'Open Sans',
+  'Montserrat',
+  'Oswald',
+  'Lato',
+  'Poppins',
+  'Lora',
+  'Nunito',
+  'Raleway',
+  'Merriweather',
+  'Roboto',
+  'Inter',
+  'Archivo',
+];
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key, required this.project});
@@ -30,6 +58,7 @@ class EditorScreen extends StatefulWidget {
 
 class _EditorScreenState extends State<EditorScreen> {
   final _renderer = RenderService();
+  final _imageService = ImageService();
   late final ProjectStore _store;
   final _uuid = const Uuid();
   final _undo = <List<Map<String, dynamic>>>[];
@@ -69,9 +98,55 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Future<void> _loadBase() async {
     try {
-      final file = File(widget.project.originalPath);
-      if (!await file.exists()) {
+      var changed = false;
+      final source = File(widget.project.originalPath);
+      if (!await source.exists()) {
         throw StateError('Original image is missing.');
+      }
+
+      final normalizedBase = await _imageService.decode(source.path);
+      if (p.extension(source.path).toLowerCase() != '.png' ||
+          widget.project.width != normalizedBase.width ||
+          widget.project.height != normalizedBase.height) {
+        final target = File(p.join(source.parent.path, 'original-upright.png'));
+        await _imageService.writePng(normalizedBase, target.path);
+        widget.project.originalPath = target.path;
+        widget.project.width = normalizedBase.width;
+        widget.project.height = normalizedBase.height;
+        changed = true;
+      }
+
+      // Migrate older raster overlays too, so projects created by previous
+      // builds no longer depend on platform-specific EXIF decoding.
+      for (final layer in widget.project.layers) {
+        if (layer.type != LayerType.image ||
+            layer.assetPath == null ||
+            p.extension(layer.assetPath!).toLowerCase() == '.svg') {
+          continue;
+        }
+        final overlayFile = File(layer.assetPath!);
+        if (!await overlayFile.exists()) continue;
+
+        final normalizedOverlay = await _imageService.decode(overlayFile.path);
+        if (p.extension(overlayFile.path).toLowerCase() != '.png') {
+          final target = File(
+            p.join(overlayFile.parent.path, '${_uuid.v4()}-upright.png'),
+          );
+          await _imageService.writePng(normalizedOverlay, target.path);
+          layer.assetPath = target.path;
+          changed = true;
+        }
+        if (layer.assetWidth != normalizedOverlay.width ||
+            layer.assetHeight != normalizedOverlay.height) {
+          layer.assetWidth = normalizedOverlay.width;
+          layer.assetHeight = normalizedOverlay.height;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        await _store.save(widget.project);
+        _savedProjectSnapshot = _captureProject();
       }
       if (mounted) setState(() => _baseLoaded = true);
     } catch (error) {
@@ -316,8 +391,20 @@ class _EditorScreenState extends State<EditorScreen> {
       await assetDir.create(recursive: true);
 
       final extension = p.extension(source.path).toLowerCase();
-      final target = File(p.join(assetDir.path, '${_uuid.v4()}$extension'));
-      await source.copy(target.path);
+      var assetWidth = 0;
+      var assetHeight = 0;
+      late final File target;
+
+      if (extension == '.svg') {
+        target = File(p.join(assetDir.path, '${_uuid.v4()}.svg'));
+        await source.copy(target.path);
+      } else {
+        final normalized = await _imageService.decode(source.path);
+        target = File(p.join(assetDir.path, '${_uuid.v4()}.png'));
+        await _imageService.writePng(normalized, target.path);
+        assetWidth = normalized.width;
+        assetHeight = normalized.height;
+      }
 
       _checkpoint();
       setState(() {
@@ -325,6 +412,8 @@ class _EditorScreenState extends State<EditorScreen> {
           id: _uuid.v4(),
           type: LayerType.image,
           assetPath: target.path,
+          assetWidth: assetWidth,
+          assetHeight: assetHeight,
         ));
         _selected = widget.project.layers.length - 1;
       });
@@ -630,20 +719,31 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Widget _rawLayerImage(EditorLayer layer) {
+    final aspectRatio = layer.assetWidth > 0 && layer.assetHeight > 0
+        ? layer.assetWidth / layer.assetHeight
+        : 1.0;
+    final displayWidth = math.max(
+      1.0,
+      math.min(
+        widget.project.width * .30,
+        widget.project.height * .30 * aspectRatio,
+      ),
+    );
+
     if (layer.assetPath == null || !File(layer.assetPath!).existsSync()) {
-      return const SizedBox(
-        width: 180,
-        height: 100,
-        child: Center(child: Icon(Icons.broken_image_outlined)),
+      return SizedBox(
+        width: displayWidth,
+        height: displayWidth / aspectRatio,
+        child: const Center(child: Icon(Icons.broken_image_outlined)),
       );
     }
     final file = File(layer.assetPath!);
     if (p.extension(layer.assetPath!).toLowerCase() == '.svg') {
-      return SvgPicture.file(file, width: 180, fit: BoxFit.contain);
+      return SvgPicture.file(file, width: displayWidth, fit: BoxFit.contain);
     }
     return Image.file(
       file,
-      width: 180,
+      width: displayWidth,
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
     );
@@ -972,10 +1072,12 @@ class _EditorScreenState extends State<EditorScreen> {
                 labelText: _t('Font', 'الخط'),
                 border: const OutlineInputBorder(),
               ),
-              items: const [
-                DropdownMenuItem(value: 'Cairo', child: Text('Cairo')),
-                DropdownMenuItem(value: 'Open Sans', child: Text('Open Sans')),
-              ],
+              items: _fontFamilies
+                  .map((family) => DropdownMenuItem(
+                        value: family,
+                        child: Text(family),
+                      ))
+                  .toList(),
               onChanged: (value) {
                 if (value != null) _updateSelected((layer) => layer.fontFamily = value);
               },
@@ -1113,10 +1215,14 @@ class _EditorScreenState extends State<EditorScreen> {
           ),
           const SizedBox(height: 8),
           _slider(
-            _t('Scale', 'الحجم'),
-            selected.scale.clamp(.2, 5.0).toDouble(),
-            .2,
-            5,
+            selected.type == LayerType.image
+                ? _t('Image scale (up to 20×)', 'تكبير الصورة (حتى 20×)')
+                : _t('Text scale (up to 10×)', 'تكبير النص (حتى 10×)'),
+            selected.scale
+                .clamp(.1, selected.type == LayerType.image ? 20.0 : 10.0)
+                .toDouble(),
+            .1,
+            selected.type == LayerType.image ? 20 : 10,
             (value) => _updateSelected((layer) => layer.scale = value),
           ),
           _slider(
