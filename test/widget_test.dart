@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:layer_studio/models/editor_layer.dart';
 
 void main() {
@@ -7,6 +8,9 @@ void main() {
       id: 'test',
       type: LayerType.text,
       text: 'مرحبا Hello',
+      assetPath: 'assets/overlay.png',
+      assetWidth: 1200,
+      assetHeight: 800,
       x: .25,
       y: .75,
       scale: 1.4,
@@ -23,6 +27,9 @@ void main() {
     );
     final restored = EditorLayer.fromJson(layer.toJson());
     expect(restored.text, 'مرحبا Hello');
+    expect(restored.assetPath, 'assets/overlay.png');
+    expect(restored.assetWidth, 1200);
+    expect(restored.assetHeight, 800);
     expect(restored.x, .25);
     expect(restored.y, .75);
     expect(restored.scale, 1.4);
@@ -35,5 +42,16 @@ void main() {
     expect(restored.shadowBlur, 8);
     expect(restored.shadowOffsetX, 4);
     expect(restored.shadowOffsetY, -2);
+  });
+
+  test('EXIF orientation is baked into raster pixel dimensions', () {
+    final raw = img.Image(width: 2, height: 3);
+    raw.exif.imageIfd.orientation = 6;
+
+    final upright = img.bakeOrientation(raw);
+
+    expect(upright.width, 3);
+    expect(upright.height, 2);
+    expect(upright.exif.imageIfd.hasOrientation, isFalse);
   });
 }
