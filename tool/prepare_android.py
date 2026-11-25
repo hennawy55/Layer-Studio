@@ -66,18 +66,29 @@ hosted = pub_cache / "hosted"
 patched = []
 if hosted.exists():
     for registry in hosted.iterdir():
-        package_dir = registry / "file_picker-8.1.7"
-        for relative in ("android/build.gradle", "android/build.gradle.kts"):
-            gradle_file = package_dir / relative
-            if gradle_file.exists():
-                force_api_36(gradle_file)
-                patched.append(str(gradle_file))
+        if not registry.is_dir():
+            continue
+        # pubspec uses a compatible version range; patch the version pub
+        # actually resolved (for example file_picker-8.3.7).
+        for package_dir in registry.glob("file_picker-*"):
+            for relative in ("android/build.gradle", "android/build.gradle.kts"):
+                gradle_file = package_dir / relative
+                if gradle_file.exists():
+                    force_api_36(gradle_file)
+                    patched.append(str(gradle_file))
 
 if not patched:
+    candidates = []
+    if hosted.exists():
+        candidates = [
+            str(path)
+            for path in hosted.glob("*/file_picker-*/android/*gradle*")
+        ]
     raise FileNotFoundError(
-        f"Could not locate file_picker 8.1.7 Android Gradle file under {hosted}"
+        f"Could not locate file_picker Android Gradle file under {hosted}. "
+        f"Candidates: {candidates}"
     )
 
-print("Prepared Android compileSdk 36 for app and file_picker:")
+print("Prepared Android compileSdk 36 for app and resolved file_picker version:")
 for file_path in patched:
     print(f" - {file_path}")
