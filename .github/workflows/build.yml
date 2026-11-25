@@ -47,6 +47,8 @@ jobs:
         run: flutter create --platforms=android --project-name=layer_studio --org=com.layerstudio --no-pub .
       - name: Download licensed bundled fonts
         run: bash tool/fetch_fonts.sh
+      - name: Install Android API 36 platform
+        run: yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
       - name: Prepare Android SDK compatibility and gallery permission
         run: python3 tool/prepare_android.py
       - run: flutter pub get
