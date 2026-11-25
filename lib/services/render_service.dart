@@ -54,6 +54,7 @@ class RenderService {
         canvas.translate(layer.x * width, layer.y * height);
         canvas.rotate(layer.rotation);
         canvas.scale(layer.scale);
+        canvas.scale(layer.flipX ? -1.0 : 1.0, layer.flipY ? -1.0 : 1.0);
 
         if (layer.type == LayerType.image && layer.assetPath != null) {
           final file = File(layer.assetPath!);
