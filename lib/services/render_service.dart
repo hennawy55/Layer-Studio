@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -169,8 +170,8 @@ class RenderService {
       const samples = 20;
       for (var i = 0; i < samples; i++) {
         final angle = (i / samples) * 6.283185307179586;
-        final dx = layer.strokeWidth * ui.math.cos(angle);
-        final dy = layer.strokeWidth * ui.math.sin(angle);
+        final dx = layer.strokeWidth * math.cos(angle);
+        final dy = layer.strokeWidth * math.sin(angle);
         canvas.drawImageRect(
           overlay,
           source,
