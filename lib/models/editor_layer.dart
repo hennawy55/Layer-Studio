@@ -22,6 +22,14 @@ class EditorLayer {
     this.italic = false,
     this.flipX = false,
     this.flipY = false,
+    this.strokeColor = 0xFF000000,
+    this.strokeWidth = 0,
+    this.overlayColor = 0xFFFFFFFF,
+    this.overlayOpacity = 0,
+    this.shadowColor = 0xFF000000,
+    this.shadowBlur = 0,
+    this.shadowOffsetX = 0,
+    this.shadowOffsetY = 0,
     this.align = 'center',
   });
 
@@ -43,6 +51,14 @@ class EditorLayer {
   bool italic;
   bool flipX;
   bool flipY;
+  int strokeColor;
+  double strokeWidth;
+  int overlayColor;
+  double overlayOpacity;
+  int shadowColor;
+  double shadowBlur;
+  double shadowOffsetX;
+  double shadowOffsetY;
   String align;
 
   Map<String, dynamic> toJson() => {
@@ -64,6 +80,14 @@ class EditorLayer {
     'italic': italic,
     'flipX': flipX,
     'flipY': flipY,
+    'strokeColor': strokeColor,
+    'strokeWidth': strokeWidth,
+    'overlayColor': overlayColor,
+    'overlayOpacity': overlayOpacity,
+    'shadowColor': shadowColor,
+    'shadowBlur': shadowBlur,
+    'shadowOffsetX': shadowOffsetX,
+    'shadowOffsetY': shadowOffsetY,
     'align': align,
   };
 
@@ -89,6 +113,14 @@ class EditorLayer {
     italic: json['italic'] as bool? ?? false,
     flipX: json['flipX'] as bool? ?? false,
     flipY: json['flipY'] as bool? ?? false,
+    strokeColor: json['strokeColor'] as int? ?? 0xFF000000,
+    strokeWidth: (json['strokeWidth'] as num?)?.toDouble() ?? 0,
+    overlayColor: json['overlayColor'] as int? ?? 0xFFFFFFFF,
+    overlayOpacity: (json['overlayOpacity'] as num?)?.toDouble() ?? 0,
+    shadowColor: json['shadowColor'] as int? ?? 0xFF000000,
+    shadowBlur: (json['shadowBlur'] as num?)?.toDouble() ?? 0,
+    shadowOffsetX: (json['shadowOffsetX'] as num?)?.toDouble() ?? 0,
+    shadowOffsetY: (json['shadowOffsetY'] as num?)?.toDouble() ?? 0,
     align: json['align'] as String? ?? 'center',
   );
 
