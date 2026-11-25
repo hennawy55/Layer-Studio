@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -33,10 +35,16 @@ class _EditorScreenState extends State<EditorScreen> {
   final _undo = <List<Map<String, dynamic>>>[];
   final _redo = <List<Map<String, dynamic>>>[];
   Timer? _saveTimer;
+  final TransformationController _zoomController = TransformationController();
+  Map<String, dynamic>? _savedProjectSnapshot;
   int? _selected;
   bool _baseLoaded = false;
   bool _busy = false;
   bool _saving = false;
+  bool _dirty = false;
+  bool _allowPop = false;
+  bool _exitDialogOpen = false;
+  bool _zoomInitialized = false;
 
   bool get _isArabic =>
       Localizations.localeOf(context).languageCode == 'ar';
@@ -47,12 +55,14 @@ class _EditorScreenState extends State<EditorScreen> {
   void initState() {
     super.initState();
     _store = context.read<AppState>().store;
+    _savedProjectSnapshot = _captureProject();
     _loadBase();
   }
 
   @override
   void dispose() {
     _saveTimer?.cancel();
+    _zoomController.dispose();
     unawaited(_store.save(widget.project));
     super.dispose();
   }
@@ -106,22 +116,104 @@ class _EditorScreenState extends State<EditorScreen> {
     _restore(_redo.removeLast());
   }
 
+  Map<String, dynamic> _captureProject() =>
+      jsonDecode(jsonEncode(widget.project.toJson())) as Map<String, dynamic>;
+
   void _autosave() {
+    if (!_dirty && mounted) {
+      setState(() => _dirty = true);
+    }
     _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(milliseconds: 650), _saveNow);
+    _saveTimer = Timer(const Duration(milliseconds: 700), () {
+      _saveNow();
+    });
   }
 
-  Future<void> _saveNow() async {
-    if (_saving) return;
+  Future<bool> _saveNow({bool manual = false}) async {
     _saveTimer?.cancel();
-    setState(() => _saving = true);
+    while (_saving) {
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      if (!mounted) return false;
+    }
+
+    if (mounted) setState(() => _saving = true);
     try {
-      await context.read<AppState>().store.save(widget.project);
+      await _store.save(widget.project);
+      if (manual) {
+        _savedProjectSnapshot = _captureProject();
+        if (mounted) setState(() => _dirty = false);
+        if (mounted) _message(_t('Project saved successfully', 'تم حفظ المشروع بنجاح'));
+      }
+      return true;
     } catch (error) {
       if (mounted) _message('${_t('Save failed', 'فشل الحفظ')}: $error');
+      return false;
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _restoreLastSavedProject() async {
+    final snapshot = _savedProjectSnapshot;
+    if (snapshot == null) return;
+    final saved = EditorProject.fromJson(snapshot);
+    widget.project.name = saved.name;
+    widget.project.originalPath = saved.originalPath;
+    widget.project.width = saved.width;
+    widget.project.height = saved.height;
+    widget.project.createdAt = saved.createdAt;
+    widget.project.updatedAt = saved.updatedAt;
+    widget.project.layers = saved.layers.map((layer) => layer.copy()).toList();
+    await _store.save(widget.project);
+    if (mounted) setState(() => _dirty = false);
+  }
+
+  Future<void> _confirmLeave() async {
+    if (_exitDialogOpen || !_dirty || !mounted) return;
+    _exitDialogOpen = true;
+    final action = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_t('Unsaved changes', 'تغييرات غير محفوظة')),
+        content: Text(_t(
+          'You have changes that were not manually saved. Save before leaving?',
+          'لديك تعديلات لم تحفظها يدوياً. هل تريد حفظها قبل الخروج؟',
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'stay'),
+            child: Text(_t('Stay', 'البقاء')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'discard'),
+            child: Text(_t('Discard', 'تجاهل التعديلات')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, 'save'),
+            child: Text(_t('Save & exit', 'حفظ وخروج')),
+          ),
+        ],
+      ),
+    );
+    _exitDialogOpen = false;
+    if (!mounted || action == null || action == 'stay') return;
+
+    if (action == 'save') {
+      final saved = await _saveNow(manual: true);
+      if (!saved || !mounted) return;
+    } else if (action == 'discard') {
+      try {
+        await _restoreLastSavedProject();
+      } catch (error) {
+        if (mounted) _message('${_t('Could not restore saved version', 'تعذرت استعادة النسخة المحفوظة')}: $error');
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    Navigator.of(context).pop();
   }
 
   Future<void> _renameProject() async {
@@ -385,7 +477,14 @@ class _EditorScreenState extends State<EditorScreen> {
         ? null
         : widget.project.layers[_selected!];
 
-    return Directionality(
+    return PopScope(
+      canPop: !_dirty || _allowPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _dirty) {
+          _confirmLeave();
+        }
+      },
+      child: Directionality(
       textDirection: _isArabic ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
         appBar: AppBar(
@@ -413,7 +512,7 @@ class _EditorScreenState extends State<EditorScreen> {
             ),
             IconButton(
               tooltip: _t('Save', 'حفظ'),
-              onPressed: _saving ? null : _saveNow,
+              onPressed: _saving ? null : () => _saveNow(manual: true),
               icon: _saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.save_outlined),
@@ -463,42 +562,69 @@ class _EditorScreenState extends State<EditorScreen> {
           },
         ),
       ),
+      ),
     );
   }
 
   Widget _buildCanvas() {
-    return Container(
-      color: Theme.of(context).brightness == Brightness.dark
-          ? const Color(0xFF181820)
-          : const Color(0xFFE7E7EE),
-      alignment: Alignment.center,
-      child: !_baseLoaded
-          ? const Center(child: CircularProgressIndicator())
-          : InteractiveViewer(
-              minScale: .2,
-              maxScale: 5,
-              child: FittedBox(
-                fit: BoxFit.contain,
-                child: SizedBox(
-                  width: widget.project.width.toDouble(),
-                  height: widget.project.height.toDouble(),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Image.file(
-                        File(widget.project.originalPath),
-                        fit: BoxFit.fill,
-                        filterQuality: FilterQuality.high,
-                      ),
-                      for (var i = 0; i < widget.project.layers.length; i++)
-                        if (widget.project.layers[i].visible)
-                          _buildLayer(widget.project.layers[i], i),
-                    ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = math.max(1.0, constraints.maxWidth - 32);
+        final availableHeight = math.max(1.0, constraints.maxHeight - 32);
+        final fitScale = math.min(
+          availableWidth / widget.project.width,
+          availableHeight / widget.project.height,
+        ).clamp(0.02, 1.0);
+
+        if (!_zoomInitialized && _baseLoaded) {
+          _zoomInitialized = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final offsetX = (constraints.maxWidth - widget.project.width * fitScale) / 2;
+            final offsetY = (constraints.maxHeight - widget.project.height * fitScale) / 2;
+            _zoomController.value = Matrix4.identity()
+              ..translate(offsetX, offsetY)
+              ..scale(fitScale);
+          });
+        }
+
+        return Container(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFF181820)
+              : const Color(0xFFE7E7EE),
+          alignment: Alignment.center,
+          child: !_baseLoaded
+              ? const Center(child: CircularProgressIndicator())
+              : InteractiveViewer(
+                  transformationController: _zoomController,
+                  constrained: false,
+                  minScale: fitScale * 0.5,
+                  maxScale: fitScale * 8,
+                  boundaryMargin: EdgeInsets.all(
+                    math.max(widget.project.width, widget.project.height).toDouble(),
+                  ),
+                  clipBehavior: Clip.hardEdge,
+                  child: SizedBox(
+                    width: widget.project.width.toDouble(),
+                    height: widget.project.height.toDouble(),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      clipBehavior: Clip.none,
+                      children: [
+                        Image.file(
+                          File(widget.project.originalPath),
+                          fit: BoxFit.fill,
+                          filterQuality: FilterQuality.high,
+                        ),
+                        for (var i = 0; i < widget.project.layers.length; i++)
+                          if (widget.project.layers[i].visible)
+                            _buildLayer(widget.project.layers[i], i),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+        );
+      },
     );
   }
 
