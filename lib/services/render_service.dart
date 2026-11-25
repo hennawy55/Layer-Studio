@@ -45,14 +45,20 @@ class RenderService {
     EditorLayer layer, {
     required Color color,
     Paint? foreground,
+    bool includeShadow = true,
   }) {
     final containsArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(layer.text);
-    final shadows = layer.shadowBlur > 0 ||
-            layer.shadowOffsetX != 0 ||
-            layer.shadowOffsetY != 0
+    final shadows = includeShadow &&
+            (layer.shadowBlur > 0 ||
+                layer.shadowOffsetX != 0 ||
+                layer.shadowOffsetY != 0)
         ? [
             Shadow(
-              color: Color(layer.shadowColor),
+              color: Color(layer.shadowColor).withValues(
+                alpha: (Color(layer.shadowColor).a * layer.opacity)
+                    .clamp(0.0, 1.0)
+                    .toDouble(),
+              ),
               blurRadius: layer.shadowBlur,
               offset: Offset(layer.shadowOffsetX, layer.shadowOffsetY),
             ),
@@ -87,6 +93,7 @@ class RenderService {
       final strokePainter = _makeTextPainter(
         layer,
         color: Colors.transparent,
+        includeShadow: false,
         foreground: Paint()
           ..style = PaintingStyle.stroke
           ..strokeJoin = StrokeJoin.round
