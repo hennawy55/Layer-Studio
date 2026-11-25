@@ -4,12 +4,24 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/editor_layer.dart';
 import '../models/editor_project.dart';
 
 class RenderService {
   Future<ui.Image> _decodeUiImage(String path) async {
+    if (path.toLowerCase().endsWith('.svg')) {
+      final pictureInfo = await vg.loadPicture(SvgFileLoader(File(path)), null);
+      try {
+        final width = pictureInfo.size.width.ceil().clamp(1, 12000);
+        final height = pictureInfo.size.height.ceil().clamp(1, 12000);
+        return await pictureInfo.picture.toImage(width, height);
+      } finally {
+        pictureInfo.picture.dispose();
+      }
+    }
+
     final bytes = await File(path).readAsBytes();
     final codec = await ui.instantiateImageCodec(bytes);
     try {
@@ -24,7 +36,7 @@ class RenderService {
     final width = base.width;
     final height = base.height;
 
-    if (width <= 0 || height <= 0 || width > 30000 || height > 30000) {
+    if (width <= 0 || height <= 0 || width > 30000 || height > 30000 || width * height > 100000000) {
       base.dispose();
       throw const FormatException('Image dimensions are not supported.');
     }
