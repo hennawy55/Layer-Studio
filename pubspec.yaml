@@ -30,12 +30,102 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/fonts/
+    - assets/fonts/licenses/
     - assets/samples/
   fonts:
     - family: Cairo
       fonts:
-        - asset: assets/fonts/Cairo.ttf
+        - asset: assets/fonts/cairo.ttf
+          weight: 400
+    - family: Almarai
+      fonts:
+        - asset: assets/fonts/almarai.ttf
+          weight: 400
+    - family: Alexandria
+      fonts:
+        - asset: assets/fonts/alexandria.ttf
+          weight: 400
+    - family: Amiri
+      fonts:
+        - asset: assets/fonts/amiri.ttf
+          weight: 400
+    - family: Changa
+      fonts:
+        - asset: assets/fonts/changa.ttf
+          weight: 400
+    - family: Fustat
+      fonts:
+        - asset: assets/fonts/fustat.ttf
+          weight: 400
+    - family: Mada
+      fonts:
+        - asset: assets/fonts/mada.ttf
+          weight: 400
+    - family: Harmattan
+      fonts:
+        - asset: assets/fonts/harmattan.ttf
+          weight: 400
+    - family: Kufam
+      fonts:
+        - asset: assets/fonts/kufam.ttf
+          weight: 400
+    - family: Marhey
+      fonts:
+        - asset: assets/fonts/marhey.ttf
+          weight: 400
+    - family: Oi
+      fonts:
+        - asset: assets/fonts/oi.ttf
+          weight: 400
+    - family: Rakkas
+      fonts:
+        - asset: assets/fonts/rakkas.ttf
+          weight: 400
     - family: Open Sans
       fonts:
-        - asset: assets/fonts/OpenSans.ttf
+        - asset: assets/fonts/open-sans.ttf
+          weight: 400
+    - family: Montserrat
+      fonts:
+        - asset: assets/fonts/montserrat.ttf
+          weight: 400
+    - family: Oswald
+      fonts:
+        - asset: assets/fonts/oswald.ttf
+          weight: 400
+    - family: Lato
+      fonts:
+        - asset: assets/fonts/lato.ttf
+          weight: 400
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/poppins.ttf
+          weight: 400
+    - family: Lora
+      fonts:
+        - asset: assets/fonts/lora.ttf
+          weight: 400
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/nunito.ttf
+          weight: 400
+    - family: Raleway
+      fonts:
+        - asset: assets/fonts/raleway.ttf
+          weight: 400
+    - family: Merriweather
+      fonts:
+        - asset: assets/fonts/merriweather.ttf
+          weight: 400
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/roboto.ttf
+          weight: 400
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/inter.ttf
+          weight: 400
+    - family: Archivo
+      fonts:
+        - asset: assets/fonts/archivo.ttf
+          weight: 400
