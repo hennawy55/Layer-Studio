@@ -628,37 +628,149 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
+  Widget _rawLayerImage(EditorLayer layer) {
+    if (layer.assetPath == null || !File(layer.assetPath!).existsSync()) {
+      return const SizedBox(
+        width: 180,
+        height: 100,
+        child: Center(child: Icon(Icons.broken_image_outlined)),
+      );
+    }
+    final file = File(layer.assetPath!);
+    if (p.extension(layer.assetPath!).toLowerCase() == '.svg') {
+      return SvgPicture.file(file, width: 180, fit: BoxFit.contain);
+    }
+    return Image.file(
+      file,
+      width: 180,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    );
+  }
+
   Widget _buildLayer(EditorLayer layer, int index) {
     final isSelected = _selected == index;
-    final child = layer.type == LayerType.text
-        ? Text(
-            layer.text,
-            textAlign: switch (layer.align) {
-              'left' => TextAlign.left,
-              'right' => TextAlign.right,
-              _ => TextAlign.center,
-            },
-            textDirection: RegExp(r'[\u0600-\u06FF]').hasMatch(layer.text)
-                ? TextDirection.rtl
-                : TextDirection.ltr,
-            style: TextStyle(
-              fontFamily: layer.fontFamily,
-              fontSize: layer.fontSize,
-              color: Color(layer.color),
-              fontWeight: layer.bold ? FontWeight.bold : FontWeight.normal,
-              fontStyle: layer.italic ? FontStyle.italic : FontStyle.normal,
+    final effectiveTextColor = layer.overlayOpacity > 0
+        ? Color.alphaBlend(
+            Color(layer.overlayColor).withValues(
+              alpha: layer.overlayOpacity.clamp(0.0, 1.0),
             ),
+            Color(layer.color),
           )
-        : (layer.assetPath != null && File(layer.assetPath!).existsSync()
-            ? (p.extension(layer.assetPath!).toLowerCase() == '.svg'
-                ? SvgPicture.file(File(layer.assetPath!), width: 180, fit: BoxFit.contain)
-                : Image.file(
-                    File(layer.assetPath!),
-                    width: 180,
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.high,
-                  ))
-            : const Icon(Icons.broken_image_outlined));
+        : Color(layer.color);
+
+    Widget visual;
+    if (layer.type == LayerType.text) {
+      final textDirection =
+          RegExp(r'[\u0600-\u06FF]').hasMatch(layer.text)
+              ? TextDirection.rtl
+              : TextDirection.ltr;
+      final shadows = layer.shadowBlur > 0 ||
+              layer.shadowOffsetX != 0 ||
+              layer.shadowOffsetY != 0
+          ? [
+              Shadow(
+                color: Color(layer.shadowColor),
+                blurRadius: layer.shadowBlur,
+                offset: Offset(layer.shadowOffsetX, layer.shadowOffsetY),
+              ),
+            ]
+          : const <Shadow>[];
+      final common = TextStyle(
+        fontFamily: layer.fontFamily,
+        fontSize: layer.fontSize,
+        fontWeight: layer.bold ? FontWeight.bold : FontWeight.normal,
+        fontStyle: layer.italic ? FontStyle.italic : FontStyle.normal,
+      );
+      visual = Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          if (layer.strokeWidth > 0)
+            Text(
+              layer.text,
+              textAlign: _textAlign(layer.align),
+              textDirection: textDirection,
+              style: common.copyWith(
+                foreground: Paint()
+                  ..style = PaintingStyle.stroke
+                  ..strokeJoin = StrokeJoin.round
+                  ..strokeWidth = layer.strokeWidth * 2
+                  ..color = Color(layer.strokeColor),
+              ),
+            ),
+          Text(
+            layer.text,
+            textAlign: _textAlign(layer.align),
+            textDirection: textDirection,
+            style: common.copyWith(color: effectiveTextColor, shadows: shadows),
+          ),
+        ],
+      );
+    } else {
+      final raw = _rawLayerImage(layer);
+      final shadow = layer.shadowBlur > 0 ||
+              layer.shadowOffsetX != 0 ||
+              layer.shadowOffsetY != 0
+          ? Transform.translate(
+              offset: Offset(layer.shadowOffsetX, layer.shadowOffsetY),
+              child: ImageFiltered(
+                imageFilter: ui.ImageFilter.blur(
+                  sigmaX: layer.shadowBlur,
+                  sigmaY: layer.shadowBlur,
+                ),
+                child: ColorFiltered(
+                  colorFilter: ColorFilter.mode(
+                    Color(layer.shadowColor),
+                    BlendMode.srcIn,
+                  ),
+                  child: raw,
+                ),
+              ),
+            )
+          : null;
+      final outlined = <Widget>[];
+      if (layer.strokeWidth > 0) {
+        for (var i = 0; i < 20; i++) {
+          final angle = (i / 20) * math.pi * 2;
+          outlined.add(
+            Transform.translate(
+              offset: Offset(
+                math.cos(angle) * layer.strokeWidth,
+                math.sin(angle) * layer.strokeWidth,
+              ),
+              child: ColorFiltered(
+                colorFilter: ColorFilter.mode(
+                  Color(layer.strokeColor),
+                  BlendMode.srcIn,
+                ),
+                child: raw,
+              ),
+            ),
+          );
+        }
+      }
+      final tinted = layer.overlayOpacity > 0
+          ? ColorFiltered(
+              colorFilter: ColorFilter.mode(
+                Color(layer.overlayColor).withValues(
+                  alpha: layer.overlayOpacity.clamp(0.0, 1.0),
+                ),
+                BlendMode.srcATop,
+              ),
+              child: raw,
+            )
+          : raw;
+      visual = Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          if (shadow != null) shadow,
+          ...outlined,
+          tinted,
+        ],
+      );
+    }
 
     return Positioned(
       left: layer.x * widget.project.width,
@@ -666,8 +778,14 @@ class _EditorScreenState extends State<EditorScreen> {
       child: FractionalTranslation(
         translation: const Offset(-.5, -.5),
         child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
           onTap: () => _selectLayer(index),
-          onPanStart: layer.locked ? null : (_) => _checkpoint(),
+          onPanStart: layer.locked
+              ? null
+              : (_) {
+                  _checkpoint();
+                  _autosave();
+                },
           onPanUpdate: layer.locked
               ? null
               : (details) {
@@ -685,20 +803,24 @@ class _EditorScreenState extends State<EditorScreen> {
                 flipX: layer.flipX,
                 flipY: layer.flipY,
                 child: Opacity(
-                opacity: layer.opacity.clamp(0.0, 1.0).toDouble(),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: isSelected
-                      ? BoxDecoration(
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 2,
-                          ),
-                        )
-                      : null,
-                  child: child,
+                  opacity: layer.opacity.clamp(0.0, 1.0).toDouble(),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    constraints: const BoxConstraints(
+                      minWidth: 72,
+                      minHeight: 64,
+                    ),
+                    decoration: isSelected
+                        ? BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 2,
+                            ),
+                          )
+                        : null,
+                    child: visual,
+                  ),
                 ),
-              ),
               ),
             ),
           ),
@@ -706,6 +828,12 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
     );
   }
+
+  TextAlign _textAlign(String alignment) => switch (alignment) {
+        'left' => TextAlign.left,
+        'right' => TextAlign.right,
+        _ => TextAlign.center,
+      };
 
   Widget _buildTools(EditorLayer? selected) {
     return ListView(
