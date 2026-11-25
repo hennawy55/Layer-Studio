@@ -35,7 +35,6 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _baseLoaded = false;
   bool _busy = false;
   bool _saving = false;
-  int _exportQuality = 95;
 
   bool get _isArabic =>
       Localizations.localeOf(context).languageCode == 'ar';
@@ -575,7 +574,6 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Widget _buildTools(EditorLayer? selected) {
-    final isDesktop = MediaQuery.sizeOf(context).width > 760;
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
