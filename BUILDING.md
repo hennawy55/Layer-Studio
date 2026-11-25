@@ -8,7 +8,7 @@
 
 ## Prepare the project
 
-Generate Android and Windows runner projects and fetch the licensed fonts:
+Generate Android and Windows runner projects and fetch the 24 licensed Arabic/Latin font families:
 
 Linux/macOS:
 ```bash
