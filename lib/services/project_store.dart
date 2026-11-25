@@ -6,10 +6,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/editor_project.dart';
+import 'image_service.dart';
 
 class ProjectStore {
   late Directory root;
   final _uuid = const Uuid();
+  final _imageService = ImageService();
 
   Future<void> initialize() async {
     final base = await getApplicationSupportDirectory();
@@ -23,26 +25,27 @@ class ProjectStore {
     return folder;
   }
 
-  Future<EditorProject> create(String imagePath, int width, int height) async {
+  Future<EditorProject> create(String imagePath) async {
+    // Decode and bake EXIF orientation before measuring or displaying the
+    // source image. Store a lossless PNG so Android and Windows render it
+    // identically, independent of platform EXIF handling.
+    final normalized = await _imageService.decode(imagePath);
+
     final id = _uuid.v4();
     final folder = await _folder(id);
     final assets = Directory(p.join(folder.path, 'assets'));
     await assets.create(recursive: true);
 
-    final extension = p.extension(imagePath).toLowerCase();
-    final originalCopy = File(p.join(
-      assets.path,
-      'original${extension.isEmpty ? '.img' : extension}',
-    ));
-    await File(imagePath).copy(originalCopy.path);
+    final originalCopy = File(p.join(assets.path, 'original.png'));
+    await _imageService.writePng(normalized, originalCopy.path);
 
     final now = DateTime.now();
     final project = EditorProject(
       id: id,
       name: 'Untitled project',
       originalPath: originalCopy.path,
-      width: width,
-      height: height,
+      width: normalized.width,
+      height: normalized.height,
       createdAt: now,
       updatedAt: now,
     );
