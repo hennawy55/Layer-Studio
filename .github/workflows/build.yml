@@ -49,9 +49,9 @@ jobs:
         run: bash tool/fetch_fonts.sh
       - name: Install Android API 36 platform
         run: yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
-      - name: Prepare Android SDK compatibility and gallery permission
-        run: python3 tool/prepare_android.py
       - run: flutter pub get
+      - name: Prepare Android app and plugin modules for API 36
+        run: python3 tool/prepare_android.py
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
