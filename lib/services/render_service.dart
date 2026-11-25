@@ -36,7 +36,11 @@ class RenderService {
     final base = Color(layer.color);
     if (layer.overlayOpacity <= 0) return base;
     return Color.alphaBlend(
-      Color(layer.overlayColor).withValues(alpha: layer.overlayOpacity.clamp(0.0, 1.0)),
+      Color(layer.overlayColor).withValues(
+        alpha: (layer.overlayOpacity * Color(layer.overlayColor).a)
+            .clamp(0.0, 1.0)
+            .toDouble(),
+      ),
       base,
     );
   }
