@@ -58,7 +58,7 @@ class _EditorScreenState extends State<EditorScreen> {
     try {
       final file = File(widget.project.originalPath);
       if (!await file.exists()) {
-        throw const FileSystemException('Original image is missing.');
+        throw StateError('Original image is missing.');
       }
       if (mounted) setState(() => _baseLoaded = true);
     } catch (error) {
@@ -147,6 +147,7 @@ class _EditorScreenState extends State<EditorScreen> {
         ],
       ),
     );
+    controller.dispose();
     if (name == null || name.isEmpty) return;
     setState(() => widget.project.name = name);
     _autosave();
@@ -180,6 +181,7 @@ class _EditorScreenState extends State<EditorScreen> {
         ],
       ),
     );
+    controller.dispose();
     if (text == null || text.trim().isEmpty) return;
 
     _checkpoint();
