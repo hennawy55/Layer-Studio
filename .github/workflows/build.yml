@@ -25,9 +25,9 @@ jobs:
         run: flutter create --platforms=android,windows --project-name=layer_studio --org=com.layerstudio --no-pub .
       - name: Download licensed bundled fonts
         run: bash tool/fetch_fonts.sh
-      - name: Prepare Android SDK compatibility and gallery permission
-        run: python3 tool/prepare_android.py
       - run: flutter pub get
+      - name: Prepare Android app and plugin modules for API 36
+        run: python3 tool/prepare_android.py
       - name: Format Dart source
         run: dart format lib test
       - run: flutter analyze
