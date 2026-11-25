@@ -27,9 +27,9 @@ jobs:
         run: bash tool/fetch_fonts.sh
       - name: Prepare Android SDK compatibility and gallery permission
         run: python3 tool/prepare_android.py
+      - run: flutter pub get
       - name: Format Dart source
         run: dart format lib test
-      - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
 
