@@ -15,7 +15,7 @@ class ImageService {
 
   Future<void> exportJpeg(img.Image image, String path, {int quality = 95}) async {
     await File(path).writeAsBytes(
-      img.encodeJpg(image, quality: quality.clamp(1, 100)),
+      img.encodeJpg(image, quality: quality.clamp(1, 100).toInt()),
       flush: true,
     );
   }
