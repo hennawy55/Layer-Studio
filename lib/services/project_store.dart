@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+
 import '../models/editor_project.dart';
 
 class ProjectStore {
@@ -22,11 +24,23 @@ class ProjectStore {
   }
 
   Future<EditorProject> create(String imagePath, int width, int height) async {
+    final id = _uuid.v4();
+    final folder = await _folder(id);
+    final assets = Directory(p.join(folder.path, 'assets'));
+    await assets.create(recursive: true);
+
+    final extension = p.extension(imagePath).toLowerCase();
+    final originalCopy = File(p.join(
+      assets.path,
+      'original${extension.isEmpty ? '.img' : extension}',
+    ));
+    await File(imagePath).copy(originalCopy.path);
+
     final now = DateTime.now();
     final project = EditorProject(
-      id: _uuid.v4(),
+      id: id,
       name: 'Untitled project',
-      originalPath: imagePath,
+      originalPath: originalCopy.path,
       width: width,
       height: height,
       createdAt: now,
@@ -49,24 +63,32 @@ class ProjectStore {
   Future<List<EditorProject>> listProjects() async {
     final result = <EditorProject>[];
     if (!await root.exists()) return result;
+
     await for (final entity in root.list()) {
       if (entity is! Directory) continue;
       final file = File(p.join(entity.path, 'project.json'));
       if (!await file.exists()) continue;
+
       try {
         final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-        result.add(EditorProject.fromJson(data));
+        final project = EditorProject.fromJson(data);
+        if (await File(project.originalPath).exists()) {
+          result.add(project);
+        }
       } catch (_) {
         // Skip damaged project metadata without blocking other projects.
       }
     }
+
     result.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return result;
   }
 
   Future<void> delete(String id) async {
     final folder = Directory(p.join(root.path, id));
-    if (await folder.exists()) await folder.delete(recursive: true);
+    if (await folder.exists()) {
+      await folder.delete(recursive: true);
+    }
   }
 
   Future<String> newId() async => _uuid.v4();
