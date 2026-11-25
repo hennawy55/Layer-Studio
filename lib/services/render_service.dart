@@ -3,8 +3,8 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:image/image.dart' as img;
 
 import '../models/editor_layer.dart';
 import '../models/editor_project.dart';
@@ -31,19 +31,193 @@ class RenderService {
     }
   }
 
+  Color _effectiveTextColor(EditorLayer layer) {
+    final base = Color(layer.color);
+    if (layer.overlayOpacity <= 0) return base;
+    return Color.alphaBlend(
+      Color(layer.overlayColor).withValues(alpha: layer.overlayOpacity.clamp(0.0, 1.0)),
+      base,
+    );
+  }
+
+  TextPainter _makeTextPainter(
+    EditorLayer layer, {
+    required Color color,
+    Paint? foreground,
+  }) {
+    final containsArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(layer.text);
+    final shadows = layer.shadowBlur > 0 ||
+            layer.shadowOffsetX != 0 ||
+            layer.shadowOffsetY != 0
+        ? [
+            Shadow(
+              color: Color(layer.shadowColor),
+              blurRadius: layer.shadowBlur,
+              offset: Offset(layer.shadowOffsetX, layer.shadowOffsetY),
+            ),
+          ]
+        : const <Shadow>[];
+
+    final style = TextStyle(
+      fontFamily: layer.fontFamily,
+      fontSize: layer.fontSize,
+      color: foreground == null ? color : null,
+      foreground: foreground,
+      fontWeight: layer.bold ? FontWeight.bold : FontWeight.normal,
+      fontStyle: layer.italic ? FontStyle.italic : FontStyle.normal,
+      shadows: shadows,
+    );
+
+    return TextPainter(
+      text: TextSpan(text: layer.text, style: style),
+      textDirection: containsArabic ? TextDirection.rtl : TextDirection.ltr,
+      textAlign: switch (layer.align) {
+        'left' => TextAlign.left,
+        'right' => TextAlign.right,
+        _ => TextAlign.center,
+      },
+    );
+  }
+
+  void _drawText(Canvas canvas, EditorLayer layer, int imageWidth) {
+    if (layer.text.isEmpty) return;
+
+    final centerOffset = Offset.zero;
+    if (layer.strokeWidth > 0) {
+      final strokePainter = _makeTextPainter(
+        layer,
+        color: Colors.transparent,
+        foreground: Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeJoin = StrokeJoin.round
+          ..strokeWidth = layer.strokeWidth * 2
+          ..color = Color(layer.strokeColor).withValues(
+            alpha: (Color(layer.strokeColor).a * layer.opacity).clamp(0.0, 1.0),
+          ),
+      )..layout(maxWidth: imageWidth.toDouble() * 2);
+
+      strokePainter.paint(
+        canvas,
+        Offset(-strokePainter.width / 2, -strokePainter.height / 2),
+      );
+      strokePainter.dispose();
+    }
+
+    final fillPainter = _makeTextPainter(
+      layer,
+      color: _effectiveTextColor(layer).withValues(
+        alpha: (_effectiveTextColor(layer).a * layer.opacity).clamp(0.0, 1.0),
+      ),
+    )..layout(maxWidth: imageWidth.toDouble() * 2);
+
+    fillPainter.paint(
+      canvas,
+      Offset(-fillPainter.width / 2, -fillPainter.height / 2),
+    );
+    fillPainter.dispose();
+  }
+
+  void _drawImageLayer(Canvas canvas, EditorLayer layer, ui.Image overlay) {
+    const displayWidth = 180.0;
+    final displayHeight = overlay.height * displayWidth / overlay.width;
+    final source = Rect.fromLTWH(
+      0,
+      0,
+      overlay.width.toDouble(),
+      overlay.height.toDouble(),
+    );
+    final destination = Rect.fromCenter(
+      center: Offset.zero,
+      width: displayWidth,
+      height: displayHeight,
+    );
+
+    // Shadow follows the non-transparent silhouette of the imported logo.
+    if (layer.shadowBlur > 0 ||
+        layer.shadowOffsetX != 0 ||
+        layer.shadowOffsetY != 0) {
+      final shadowPaint = Paint()
+        ..filterQuality = FilterQuality.high
+        ..colorFilter = ColorFilter.mode(
+          Color(layer.shadowColor).withValues(
+            alpha: (Color(layer.shadowColor).a * layer.opacity).clamp(0.0, 1.0),
+          ),
+          BlendMode.srcIn,
+        )
+        ..maskFilter = layer.shadowBlur > 0
+            ? MaskFilter.blur(BlurStyle.normal, layer.shadowBlur)
+            : null;
+
+      canvas.drawImageRect(
+        overlay,
+        source,
+        destination.shift(Offset(layer.shadowOffsetX, layer.shadowOffsetY)),
+        shadowPaint,
+      );
+    }
+
+    // Stroke is rendered around the alpha silhouette rather than as a box.
+    if (layer.strokeWidth > 0) {
+      final strokePaint = Paint()
+        ..filterQuality = FilterQuality.high
+        ..colorFilter = ColorFilter.mode(
+          Color(layer.strokeColor).withValues(
+            alpha: (Color(layer.strokeColor).a * layer.opacity).clamp(0.0, 1.0),
+          ),
+          BlendMode.srcIn,
+        );
+      const samples = 20;
+      for (var i = 0; i < samples; i++) {
+        final angle = (i / samples) * 6.283185307179586;
+        final dx = layer.strokeWidth * ui.math.cos(angle);
+        final dy = layer.strokeWidth * ui.math.sin(angle);
+        canvas.drawImageRect(
+          overlay,
+          source,
+          destination.shift(Offset(dx, dy)),
+          strokePaint,
+        );
+      }
+    }
+
+    final paint = Paint()
+      ..filterQuality = FilterQuality.high
+      ..color = Colors.white.withValues(
+        alpha: layer.opacity.clamp(0.0, 1.0),
+      );
+    if (layer.overlayOpacity > 0) {
+      paint.colorFilter = ColorFilter.mode(
+        Color(layer.overlayColor).withValues(
+          alpha: layer.overlayOpacity.clamp(0.0, 1.0),
+        ),
+        BlendMode.srcATop,
+      );
+    }
+
+    canvas.drawImageRect(overlay, source, destination, paint);
+  }
+
   Future<Uint8List> renderPng(EditorProject project) async {
     final base = await _decodeUiImage(project.originalPath);
     final width = base.width;
     final height = base.height;
 
-    if (width <= 0 || height <= 0 || width > 30000 || height > 30000 || width * height > 100000000) {
+    if (width <= 0 ||
+        height <= 0 ||
+        width > 30000 ||
+        height > 30000 ||
+        width * height > 100000000) {
       base.dispose();
       throw const FormatException('Image dimensions are not supported.');
     }
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    canvas.drawImage(base, Offset.zero, Paint()..filterQuality = FilterQuality.high);
+    canvas.drawImage(
+      base,
+      Offset.zero,
+      Paint()..filterQuality = FilterQuality.high,
+    );
     final loadedImages = <ui.Image>[];
 
     try {
@@ -61,46 +235,10 @@ class RenderService {
           if (await file.exists()) {
             final overlay = await _decodeUiImage(file.path);
             loadedImages.add(overlay);
-            const displayWidth = 180.0;
-            final displayHeight = overlay.height * displayWidth / overlay.width;
-            final destination = Rect.fromCenter(
-              center: Offset.zero,
-              width: displayWidth,
-              height: displayHeight,
-            );
-            final paint = Paint()
-              ..filterQuality = FilterQuality.high
-              ..color = Color.fromRGBO(255, 255, 255, layer.opacity.clamp(0.0, 1.0).toDouble());
-            canvas.drawImageRect(
-              overlay,
-              Rect.fromLTWH(0, 0, overlay.width.toDouble(), overlay.height.toDouble()),
-              destination,
-              paint,
-            );
+            _drawImageLayer(canvas, layer, overlay);
           }
-        } else if (layer.type == LayerType.text && layer.text.isNotEmpty) {
-          final containsArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(layer.text);
-          final painter = TextPainter(
-            text: TextSpan(
-              text: layer.text,
-              style: TextStyle(
-                fontFamily: layer.fontFamily,
-                fontSize: layer.fontSize,
-                color: Color(layer.color).withOpacity(layer.opacity.clamp(0.0, 1.0).toDouble()),
-                fontWeight: layer.bold ? FontWeight.bold : FontWeight.normal,
-                fontStyle: layer.italic ? FontStyle.italic : FontStyle.normal,
-              ),
-            ),
-            textDirection: containsArabic ? TextDirection.rtl : TextDirection.ltr,
-            textAlign: switch (layer.align) {
-              'left' => TextAlign.left,
-              'right' => TextAlign.right,
-              _ => TextAlign.center,
-            },
-          )..layout(maxWidth: width.toDouble() * 2);
-
-          painter.paint(canvas, Offset(-painter.width / 2, -painter.height / 2));
-          painter.dispose();
+        } else if (layer.type == LayerType.text) {
+          _drawText(canvas, layer, width);
         }
 
         canvas.restore();
