@@ -574,7 +574,7 @@ class _EditorScreenState extends State<EditorScreen> {
         final fitScale = math.min(
           availableWidth / widget.project.width,
           availableHeight / widget.project.height,
-        ).clamp(0.02, 1.0);
+        ).clamp(0.02, 1.0).toDouble();
 
         if (!_zoomInitialized && _baseLoaded) {
           _zoomInitialized = true;
@@ -653,7 +653,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final effectiveTextColor = layer.overlayOpacity > 0
         ? Color.alphaBlend(
             Color(layer.overlayColor).withValues(
-              alpha: layer.overlayOpacity.clamp(0.0, 1.0),
+              alpha: layer.overlayOpacity.clamp(0.0, 1.0).toDouble(),
             ),
             Color(layer.color),
           )
@@ -1144,7 +1144,7 @@ class _EditorScreenState extends State<EditorScreen> {
           return AlertDialog(
             title: Text(_t('Choose any color', 'اختر أي لون')),
             content: SizedBox(
-              width: 360,
+              width: math.min(360.0, MediaQuery.sizeOf(dialogContext).width - 64),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
