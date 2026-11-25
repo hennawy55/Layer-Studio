@@ -162,7 +162,7 @@ class _EditorScreenState extends State<EditorScreen> {
           autofocus: true,
           minLines: 1,
           maxLines: 5,
-          textDirection: TextDirection.auto,
+          textDirection: _isArabic ? TextDirection.rtl : TextDirection.ltr,
           decoration: InputDecoration(
             hintText: _t('Write something…', 'اكتب النص هنا…'),
           ),
@@ -445,7 +445,7 @@ class _EditorScreenState extends State<EditorScreen> {
               children: [
                 Expanded(child: canvas),
                 SizedBox(
-                  height: math.min(340, constraints.maxHeight * .49),
+                  height: math.min(340.0, constraints.maxHeight * .49),
                   child: Material(
                     color: Theme.of(context).colorScheme.surface,
                     child: tools,
@@ -547,7 +547,7 @@ class _EditorScreenState extends State<EditorScreen> {
             child: Transform.scale(
               scale: layer.scale,
               child: Opacity(
-                opacity: layer.opacity.clamp(0.0, 1.0),
+                opacity: layer.opacity.clamp(0.0, 1.0).toDouble(),
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: isSelected
@@ -631,12 +631,16 @@ class _EditorScreenState extends State<EditorScreen> {
                   switch (action) {
                     case 'visible':
                       _updateAt(i, (layer) => layer.visible = !layer.visible);
+                      break;
                     case 'locked':
                       _updateAt(i, (layer) => layer.locked = !layer.locked);
+                      break;
                     case 'up':
                       _moveLayer(i, 1);
+                      break;
                     case 'down':
                       _moveLayer(i, -1);
+                      break;
                     case 'delete':
                       _checkpoint();
                       setState(() {
@@ -644,6 +648,7 @@ class _EditorScreenState extends State<EditorScreen> {
                         _selected = null;
                       });
                       _autosave();
+                      break;
                   }
                 },
                 itemBuilder: (_) => [
@@ -683,7 +688,7 @@ class _EditorScreenState extends State<EditorScreen> {
                 labelText: _t('Text content', 'محتوى النص'),
                 border: const OutlineInputBorder(),
               ),
-              textDirection: TextDirection.auto,
+              textDirection: _isArabic ? TextDirection.rtl : TextDirection.ltr,
               onChanged: (value) {
                 selected.text = value;
                 _autosave();
@@ -707,7 +712,7 @@ class _EditorScreenState extends State<EditorScreen> {
             const SizedBox(height: 8),
             _slider(
               _t('Font size', 'حجم الخط'),
-              selected.fontSize.clamp(12.0, 180.0),
+              selected.fontSize.clamp(12.0, 180.0).toDouble(),
               12,
               180,
               (value) => _updateSelected((layer) => layer.fontSize = value),
@@ -756,21 +761,21 @@ class _EditorScreenState extends State<EditorScreen> {
           ],
           _slider(
             _t('Scale', 'الحجم'),
-            selected.scale.clamp(.2, 5.0),
+            selected.scale.clamp(.2, 5.0).toDouble(),
             .2,
             5,
             (value) => _updateSelected((layer) => layer.scale = value),
           ),
           _slider(
             _t('Rotation', 'الدوران'),
-            selected.rotation.clamp(-math.pi, math.pi),
+            selected.rotation.clamp(-math.pi, math.pi).toDouble(),
             -math.pi,
             math.pi,
             (value) => _updateSelected((layer) => layer.rotation = value),
           ),
           _slider(
             _t('Opacity', 'الشفافية'),
-            selected.opacity.clamp(0.0, 1.0),
+            selected.opacity.clamp(0.0, 1.0).toDouble(),
             0,
             1,
             (value) => _updateSelected((layer) => layer.opacity = value),
