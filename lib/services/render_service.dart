@@ -14,8 +14,8 @@ class RenderService {
     if (path.toLowerCase().endsWith('.svg')) {
       final pictureInfo = await vg.loadPicture(SvgFileLoader(File(path)), null);
       try {
-        final width = pictureInfo.size.width.ceil().clamp(1, 12000);
-        final height = pictureInfo.size.height.ceil().clamp(1, 12000);
+        final width = pictureInfo.size.width.ceil().clamp(1, 12000).toInt();
+        final height = pictureInfo.size.height.ceil().clamp(1, 12000).toInt();
         return await pictureInfo.picture.toImage(width, height);
       } finally {
         pictureInfo.picture.dispose();
