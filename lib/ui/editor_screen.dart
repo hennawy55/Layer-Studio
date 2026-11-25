@@ -14,6 +14,7 @@ import 'package:uuid/uuid.dart';
 import '../models/editor_layer.dart';
 import '../models/editor_project.dart';
 import '../services/render_service.dart';
+import '../services/project_store.dart';
 import '../state/app_state.dart';
 
 class EditorScreen extends StatefulWidget {
@@ -27,6 +28,7 @@ class EditorScreen extends StatefulWidget {
 
 class _EditorScreenState extends State<EditorScreen> {
   final _renderer = RenderService();
+  late final ProjectStore _store;
   final _uuid = const Uuid();
   final _undo = <List<Map<String, dynamic>>>[];
   final _redo = <List<Map<String, dynamic>>>[];
@@ -44,12 +46,14 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void initState() {
     super.initState();
+    _store = context.read<AppState>().store;
     _loadBase();
   }
 
   @override
   void dispose() {
     _saveTimer?.cancel();
+    unawaited(_store.save(widget.project));
     super.dispose();
   }
 
@@ -514,7 +518,7 @@ class _EditorScreenState extends State<EditorScreen> {
             style: TextStyle(
               fontFamily: layer.fontFamily,
               fontSize: layer.fontSize,
-              color: Color(layer.color).withOpacity(layer.opacity),
+              color: Color(layer.color),
               fontWeight: layer.bold ? FontWeight.bold : FontWeight.normal,
               fontStyle: layer.italic ? FontStyle.italic : FontStyle.normal,
             ),
@@ -551,7 +555,10 @@ class _EditorScreenState extends State<EditorScreen> {
             angle: layer.rotation,
             child: Transform.scale(
               scale: layer.scale,
-              child: Opacity(
+              child: Transform.flip(
+                flipX: layer.flipX,
+                flipY: layer.flipY,
+                child: Opacity(
                 opacity: layer.opacity.clamp(0.0, 1.0).toDouble(),
                 child: Container(
                   padding: const EdgeInsets.all(4),
@@ -565,6 +572,7 @@ class _EditorScreenState extends State<EditorScreen> {
                       : null,
                   child: child,
                 ),
+              ),
               ),
             ),
           ),
@@ -763,6 +771,21 @@ class _EditorScreenState extends State<EditorScreen> {
               ],
             ),
           ],
+          Wrap(
+            spacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _updateSelected((layer) => layer.flipX = !layer.flipX),
+                icon: const Icon(Icons.flip),
+                label: Text(_t('Flip H', 'قلب أفقي')),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _updateSelected((layer) => layer.flipY = !layer.flipY),
+                icon: const Icon(Icons.flip_camera_android_outlined),
+                label: Text(_t('Flip V', 'قلب رأسي')),
+              ),
+            ],
+          ),
           _slider(
             _t('Scale', 'الحجم'),
             selected.scale.clamp(.2, 5.0).toDouble(),
