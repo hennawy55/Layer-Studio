@@ -8,6 +8,8 @@ class EditorLayer {
     required this.type,
     this.text = '',
     this.assetPath,
+    this.assetWidth = 0,
+    this.assetHeight = 0,
     this.x = 0.5,
     this.y = 0.5,
     this.scale = 1,
@@ -37,6 +39,8 @@ class EditorLayer {
   final LayerType type;
   String text;
   String? assetPath;
+  int assetWidth;
+  int assetHeight;
   double x;
   double y;
   double scale;
@@ -66,6 +70,8 @@ class EditorLayer {
     'type': type.name,
     'text': text,
     'assetPath': assetPath,
+    'assetWidth': assetWidth,
+    'assetHeight': assetHeight,
     'x': x,
     'y': y,
     'scale': scale,
@@ -99,6 +105,8 @@ class EditorLayer {
     ),
     text: json['text'] as String? ?? '',
     assetPath: json['assetPath'] as String?,
+    assetWidth: json['assetWidth'] as int? ?? 0,
+    assetHeight: json['assetHeight'] as int? ?? 0,
     x: (json['x'] as num?)?.toDouble() ?? .5,
     y: (json['y'] as num?)?.toDouble() ?? .5,
     scale: (json['scale'] as num?)?.toDouble() ?? 1,
