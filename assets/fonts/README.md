@@ -1,15 +1,13 @@
 # Bundled fonts
 
-Place licensed TTF/OTF families in this folder and register each family under `flutter.fonts` in pubspec.yaml.
+The build scripts retrieve two font families from the official Google Fonts repository:
+- **Cairo** — Arabic and Latin glyph coverage, variable weight and slant.
+- **Open Sans** — Latin typography, variable width and weight.
 
-Suggested families to obtain from their official repositories:
-- Cairo (SIL Open Font License)
-- Tajawal (SIL Open Font License)
-- Amiri (SIL Open Font License)
-- Noto Sans Arabic (SIL Open Font License)
-- Roboto (Apache License 2.0)
-- Montserrat (SIL Open Font License)
-- Open Sans (Apache License 2.0)
-- Poppins (SIL Open Font License)
+Both are distributed under the SIL Open Font License (OFL). The exact OFL notices are downloaded with the font files as part of the build.
 
-Do not add font files without verifying the exact family/version license and retaining its license notice. Until font files are supplied, Flutter's platform fallback fonts are used.
+Run locally before `flutter pub get`:
+- Linux/macOS: `bash tool/fetch_fonts.sh`
+- Windows PowerShell: `./tool/fetch_fonts.ps1`
+
+The build embeds font files in the APK and Windows app. The installed application never downloads fonts and works without internet access.
