@@ -128,9 +128,19 @@ class RenderService {
     fillPainter.dispose();
   }
 
-  void _drawImageLayer(Canvas canvas, EditorLayer layer, ui.Image overlay) {
-    const displayWidth = 180.0;
-    final displayHeight = overlay.height * displayWidth / overlay.width;
+  void _drawImageLayer(
+    Canvas canvas,
+    EditorLayer layer,
+    ui.Image overlay,
+    int canvasWidth,
+    int canvasHeight,
+  ) {
+    final aspectRatio = overlay.width / overlay.height;
+    final displayWidth = math.min(
+      canvasWidth * .30,
+      canvasHeight * .30 * aspectRatio,
+    );
+    final displayHeight = displayWidth / aspectRatio;
     final source = Rect.fromLTWH(
       0,
       0,
@@ -248,7 +258,7 @@ class RenderService {
           if (await file.exists()) {
             final overlay = await _decodeUiImage(file.path);
             loadedImages.add(overlay);
-            _drawImageLayer(canvas, layer, overlay);
+            _drawImageLayer(canvas, layer, overlay, width, height);
           }
         } else if (layer.type == LayerType.text) {
           _drawText(canvas, layer, width);
