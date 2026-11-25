@@ -83,7 +83,7 @@ flutter:
           weight: 400
     - family: Open Sans
       fonts:
-        - asset: assets/fonts/open-sans.ttf
+        - asset: assets/fonts/opensans.ttf
           weight: 400
     - family: Montserrat
       fonts:
