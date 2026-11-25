@@ -20,6 +20,8 @@ class EditorLayer {
     this.color = 0xFFFFFFFF,
     this.bold = false,
     this.italic = false,
+    this.flipX = false,
+    this.flipY = false,
     this.align = 'center',
   });
 
@@ -39,6 +41,8 @@ class EditorLayer {
   int color;
   bool bold;
   bool italic;
+  bool flipX;
+  bool flipY;
   String align;
 
   Map<String, dynamic> toJson() => {
@@ -58,6 +62,8 @@ class EditorLayer {
     'color': color,
     'bold': bold,
     'italic': italic,
+    'flipX': flipX,
+    'flipY': flipY,
     'align': align,
   };
 
@@ -81,6 +87,8 @@ class EditorLayer {
     color: json['color'] as int? ?? 0xFFFFFFFF,
     bold: json['bold'] as bool? ?? false,
     italic: json['italic'] as bool? ?? false,
+    flipX: json['flipX'] as bool? ?? false,
+    flipY: json['flipY'] as bool? ?? false,
     align: json['align'] as String? ?? 'center',
   );
 
