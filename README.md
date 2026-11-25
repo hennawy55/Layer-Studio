@@ -3,9 +3,9 @@
 Offline-first, non-destructive image composition editor for Android and Windows, built with Flutter.
 
 ## Features
-- Add text, raster image and SVG logo layers over a photo.
+- Add text, raster image and SVG logo layers over a photo. Raster imports are normalized using EXIF orientation before preview and export.
 - Move, scale, rotate, reorder, hide, lock, and delete layers.
-- Edit text, select embedded Cairo/Open Sans fonts, set colour, weight, italic and alignment.
+- Edit text with 24 embedded Arabic/Latin fonts, set colour, weight, italic and alignment.
 - Arabic and English interface with RTL/LTR support.
 - Light, dark and system themes.
 - Local projects; original images and overlays are copied to app-owned storage.
