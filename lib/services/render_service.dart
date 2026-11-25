@@ -188,7 +188,9 @@ class RenderService {
     if (layer.overlayOpacity > 0) {
       paint.colorFilter = ColorFilter.mode(
         Color(layer.overlayColor).withValues(
-          alpha: layer.overlayOpacity.clamp(0.0, 1.0).toDouble(),
+          alpha: (layer.overlayOpacity * Color(layer.overlayColor).a)
+              .clamp(0.0, 1.0)
+              .toDouble(),
         ),
         BlendMode.srcATop,
       );
