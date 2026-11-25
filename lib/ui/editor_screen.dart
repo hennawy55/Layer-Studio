@@ -1013,16 +1013,13 @@ class _EditorScreenState extends State<EditorScreen> {
                 ),
               ],
             ),
-            Wrap(
-              spacing: 8,
-              children: [
-                _colorButton(Colors.white, 0xFFFFFFFF, selected),
-                _colorButton(Colors.black, 0xFF000000, selected),
-                _colorButton(Colors.red, 0xFFFF5252, selected),
-                _colorButton(Colors.amber, 0xFFFFC107, selected),
-                _colorButton(Colors.blue, 0xFF448AFF, selected),
-                _colorButton(Colors.green, 0xFF4CAF50, selected),
-              ],
+            _colorControl(
+              _t('Text color', 'لون النص'),
+              Color(selected.color),
+              () => _chooseColor(
+                Color(selected.color),
+                (layer, color) => layer.color = color,
+              ),
             ),
           ],
           Wrap(
@@ -1040,6 +1037,76 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             ],
           ),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: Text(_t('Effects', 'التأثيرات')),
+            subtitle: Text(_t('Stroke • Color overlay • Shadow', 'ستروك • تلوين • ظل')),
+            childrenPadding: const EdgeInsets.only(bottom: 12),
+            children: [
+              _colorControl(
+                _t('Stroke color', 'لون الستروك'),
+                Color(selected.strokeColor),
+                () => _chooseColor(
+                  Color(selected.strokeColor),
+                  (layer, color) => layer.strokeColor = color,
+                ),
+              ),
+              _slider(
+                _t('Stroke width', 'سُمك الستروك'),
+                selected.strokeWidth.clamp(0.0, 24.0).toDouble(),
+                0,
+                24,
+                (value) => _updateSelected((layer) => layer.strokeWidth = value),
+              ),
+              const Divider(height: 20),
+              _colorControl(
+                _t('Color overlay', 'لون الأوفرلاي'),
+                Color(selected.overlayColor),
+                () => _chooseColor(
+                  Color(selected.overlayColor),
+                  (layer, color) => layer.overlayColor = color,
+                ),
+              ),
+              _slider(
+                _t('Overlay strength', 'قوة الأوفرلاي'),
+                selected.overlayOpacity.clamp(0.0, 1.0).toDouble(),
+                0,
+                1,
+                (value) => _updateSelected((layer) => layer.overlayOpacity = value),
+              ),
+              const Divider(height: 20),
+              _colorControl(
+                _t('Shadow color', 'لون الظل'),
+                Color(selected.shadowColor),
+                () => _chooseColor(
+                  Color(selected.shadowColor),
+                  (layer, color) => layer.shadowColor = color,
+                ),
+              ),
+              _slider(
+                _t('Shadow blur', 'تمويه الظل'),
+                selected.shadowBlur.clamp(0.0, 50.0).toDouble(),
+                0,
+                50,
+                (value) => _updateSelected((layer) => layer.shadowBlur = value),
+              ),
+              _slider(
+                _t('Shadow horizontal offset', 'إزاحة الظل أفقياً'),
+                selected.shadowOffsetX.clamp(-50.0, 50.0).toDouble(),
+                -50,
+                50,
+                (value) => _updateSelected((layer) => layer.shadowOffsetX = value),
+              ),
+              _slider(
+                _t('Shadow vertical offset', 'إزاحة الظل رأسياً'),
+                selected.shadowOffsetY.clamp(-50.0, 50.0).toDouble(),
+                -50,
+                50,
+                (value) => _updateSelected((layer) => layer.shadowOffsetY = value),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           _slider(
             _t('Scale', 'الحجم'),
             selected.scale.clamp(.2, 5.0).toDouble(),
@@ -1063,6 +1130,163 @@ class _EditorScreenState extends State<EditorScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Future<Color?> _showColorPicker(Color initial) async {
+    var hsv = HSVColor.fromColor(initial);
+    var alpha = initial.opacity;
+    final result = await showDialog<Color>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final color = hsv.withAlpha(alpha).toColor();
+          return AlertDialog(
+            title: Text(_t('Choose any color', 'اختر أي لون')),
+            content: SizedBox(
+              width: 360,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    height: 46,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Theme.of(dialogContext).dividerColor),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _pickerSlider(
+                    dialogContext,
+                    _t('Hue', 'درجة اللون'),
+                    hsv.hue,
+                    0,
+                    360,
+                    (value) => setDialogState(() => hsv = hsv.withHue(value)),
+                  ),
+                  _pickerSlider(
+                    dialogContext,
+                    _t('Saturation', 'التشبع'),
+                    hsv.saturation,
+                    0,
+                    1,
+                    (value) => setDialogState(() => hsv = hsv.withSaturation(value)),
+                  ),
+                  _pickerSlider(
+                    dialogContext,
+                    _t('Brightness', 'السطوع'),
+                    hsv.value,
+                    0,
+                    1,
+                    (value) => setDialogState(() => hsv = hsv.withValue(value)),
+                  ),
+                  _pickerSlider(
+                    dialogContext,
+                    _t('Alpha / transparency', 'الشفافية'),
+                    alpha,
+                    0,
+                    1,
+                    (value) => setDialogState(() => alpha = value),
+                  ),
+                  const SizedBox(height: 8),
+                  SelectableText(
+                    '#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}',
+                    style: Theme.of(dialogContext).textTheme.labelLarge,
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(_t('Cancel', 'إلغاء')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, color),
+                child: Text(_t('Apply', 'تطبيق')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    return result;
+  }
+
+  Widget _pickerSlider(
+    BuildContext dialogContext,
+    String label,
+    double value,
+    double min,
+    double max,
+    ValueChanged<double> onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text(label)),
+            Text(value.toStringAsFixed(2)),
+          ],
+        ),
+        Slider(
+          value: value.clamp(min, max).toDouble(),
+          min: min,
+          max: max,
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _chooseColor(
+    Color current,
+    void Function(EditorLayer layer, int color) apply,
+  ) async {
+    final color = await _showColorPicker(current);
+    if (color == null || !mounted) return;
+    _updateSelected((layer) => apply(layer, color.value));
+  }
+
+  Widget _colorControl(String label, Color color, VoidCallback onPressed) {
+    final hex = color.value.toRadixString(16).padLeft(8, '0').toUpperCase();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(child: Text(label)),
+          Text(
+            '#$hex',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: onPressed,
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(_t('Pick', 'اختيار')),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1092,23 +1316,4 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
-  Widget _colorButton(Color color, int value, EditorLayer layer) {
-    final selectedColor = layer.color == value;
-    return InkWell(
-      onTap: () => _updateSelected((item) => item.color = value),
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: 30,
-        height: 30,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: selectedColor ? Theme.of(context).colorScheme.primary : Colors.grey,
-            width: selectedColor ? 3 : 1,
-          ),
-        ),
-      ),
-    );
-  }
 }
