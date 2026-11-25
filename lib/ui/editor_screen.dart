@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -196,7 +197,8 @@ class _EditorScreenState extends State<EditorScreen> {
 
   Future<void> _addImage() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
+      type: FileType.custom,
+      allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg'],
       allowMultiple: false,
       withData: false,
     );
@@ -517,12 +519,14 @@ class _EditorScreenState extends State<EditorScreen> {
             ),
           )
         : (layer.assetPath != null && File(layer.assetPath!).existsSync()
-            ? Image.file(
-                File(layer.assetPath!),
-                width: 180,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-              )
+            ? (p.extension(layer.assetPath!).toLowerCase() == '.svg'
+                ? SvgPicture.file(File(layer.assetPath!), width: 180, fit: BoxFit.contain)
+                : Image.file(
+                    File(layer.assetPath!),
+                    width: 180,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                  ))
             : const Icon(Icons.broken_image_outlined));
 
     return Positioned(
