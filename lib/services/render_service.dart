@@ -140,13 +140,13 @@ class RenderService {
     if (decoded == null) throw StateError('Unable to encode rendered image.');
 
     if (normalized == 'jpg' || normalized == 'jpeg') {
-      return img.encodeJpg(decoded, quality: jpegQuality.clamp(1, 100));
+      return img.encodeJpg(decoded, quality: jpegQuality.clamp(1, 100).toInt());
     }
     if (normalized == 'webp') {
       return img.encodeWebP(
         decoded,
         lossless: false,
-        quality: webpQuality.clamp(1, 100).toDouble(),
+        quality: webpQuality.clamp(1, 100).toInt(),
       );
     }
     throw FormatException('Unsupported export format: $extension');
