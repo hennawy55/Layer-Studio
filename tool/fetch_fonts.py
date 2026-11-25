@@ -37,7 +37,7 @@ ARABIC_FONTS = [
 ]
 
 LATIN_FONTS = [
-    ("Open Sans", "open-sans"),
+    ("Open Sans", "opensans"),
     ("Montserrat", "montserrat"),
     ("Oswald", "oswald"),
     ("Lato", "lato"),
