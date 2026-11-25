@@ -27,10 +27,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted || result == null || result.files.single.path == null) return;
     final path = result.files.single.path!;
     final bytes = await File(path).readAsBytes();
-    final decoded = await ui.decodeImageFromList(bytes);
-    final width = decoded.width;
-    final height = decoded.height;
-    decoded.dispose();
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    final width = frame.image.width;
+    final height = frame.image.height;
+    frame.image.dispose();
+    codec.dispose();
     if (!mounted) return;
     final state = context.read<AppState>();
     final project = await state.store.create(path, width, height);
