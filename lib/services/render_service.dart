@@ -83,7 +83,6 @@ class RenderService {
   void _drawText(Canvas canvas, EditorLayer layer, int imageWidth) {
     if (layer.text.isEmpty) return;
 
-    final centerOffset = Offset.zero;
     if (layer.strokeWidth > 0) {
       final strokePainter = _makeTextPainter(
         layer,
@@ -93,7 +92,7 @@ class RenderService {
           ..strokeJoin = StrokeJoin.round
           ..strokeWidth = layer.strokeWidth * 2
           ..color = Color(layer.strokeColor).withValues(
-            alpha: (Color(layer.strokeColor).a * layer.opacity).clamp(0.0, 1.0),
+            alpha: (Color(layer.strokeColor).a * layer.opacity).clamp(0.0, 1.0).toDouble(),
           ),
       )..layout(maxWidth: imageWidth.toDouble() * 2);
 
@@ -141,7 +140,7 @@ class RenderService {
         ..filterQuality = FilterQuality.high
         ..colorFilter = ColorFilter.mode(
           Color(layer.shadowColor).withValues(
-            alpha: (Color(layer.shadowColor).a * layer.opacity).clamp(0.0, 1.0),
+            alpha: (Color(layer.shadowColor).a * layer.opacity).clamp(0.0, 1.0).toDouble(),
           ),
           BlendMode.srcIn,
         )
@@ -184,12 +183,12 @@ class RenderService {
     final paint = Paint()
       ..filterQuality = FilterQuality.high
       ..color = Colors.white.withValues(
-        alpha: layer.opacity.clamp(0.0, 1.0),
+        alpha: layer.opacity.clamp(0.0, 1.0).toDouble(),
       );
     if (layer.overlayOpacity > 0) {
       paint.colorFilter = ColorFilter.mode(
         Color(layer.overlayColor).withValues(
-          alpha: layer.overlayOpacity.clamp(0.0, 1.0),
+          alpha: layer.overlayOpacity.clamp(0.0, 1.0).toDouble(),
         ),
         BlendMode.srcATop,
       );
