@@ -213,7 +213,8 @@ class _EditorScreenState extends State<EditorScreen> {
 
     if (!mounted) return;
     setState(() => _allowPop = true);
-    Navigator.of(context).pop();
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _renameProject() async {
