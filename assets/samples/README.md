@@ -1,0 +1,1 @@
+Sample asset directory. Keep this directory in the repository for future bundled sample images.
