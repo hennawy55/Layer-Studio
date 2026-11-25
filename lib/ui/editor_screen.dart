@@ -754,7 +754,7 @@ class _EditorScreenState extends State<EditorScreen> {
           ? ColorFiltered(
               colorFilter: ColorFilter.mode(
                 Color(layer.overlayColor).withValues(
-                  alpha: layer.overlayOpacity.clamp(0.0, 1.0),
+                  alpha: layer.overlayOpacity.clamp(0.0, 1.0).toDouble(),
                 ),
                 BlendMode.srcATop,
               ),
