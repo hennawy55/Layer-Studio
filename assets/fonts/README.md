@@ -1,13 +1,13 @@
-# Bundled fonts
+# Offline font bundle
 
-The build scripts retrieve two font families from the official Google Fonts repository:
-- **Cairo** — Arabic and Latin glyph coverage, variable weight and slant.
-- **Open Sans** — Latin typography, variable width and weight.
+Layer Studio packages **24 free font families** directly into the application:
+- **12 Arabic families with Latin glyphs:** Cairo, Almarai, Alexandria, Amiri, Changa, Fustat, Mada, Harmattan, Kufam, Marhey, Oi, Rakkas.
+- **12 Latin families:** Open Sans, Montserrat, Oswald, Lato, Poppins, Lora, Nunito, Raleway, Merriweather, Roboto, Inter, Archivo.
 
-Both are distributed under the SIL Open Font License (OFL). The exact OFL notices are downloaded with the font files as part of the build.
+The build script retrieves each regular TTF and its matching SIL Open Font License notice from the official Google Fonts repository. It validates that Arabic families advertise both Arabic and Latin subsets before downloading them.
 
-Run locally before `flutter pub get`:
+Run before `flutter pub get`:
 - Linux/macOS: `bash tool/fetch_fonts.sh`
 - Windows PowerShell: `./tool/fetch_fonts.ps1`
 
-The build embeds font files in the APK and Windows app. The installed application never downloads fonts and works without internet access.
+All font files are embedded in the APK and Windows application. The installed app does not download fonts and works offline. License notices are included under `assets/fonts/licenses/`.
