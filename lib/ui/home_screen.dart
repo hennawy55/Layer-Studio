@@ -1,8 +1,8 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/editor_project.dart';
 import '../state/app_state.dart';
 import 'editor_screen.dart';
 import 'projects_screen.dart';
@@ -27,10 +27,13 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted || result == null || result.files.single.path == null) return;
     final path = result.files.single.path!;
     final bytes = await File(path).readAsBytes();
-    final decoded = await decodeImageFromList(bytes);
+    final decoded = await ui.decodeImageFromList(bytes);
+    final width = decoded.width;
+    final height = decoded.height;
+    decoded.dispose();
     if (!mounted) return;
     final state = context.read<AppState>();
-    final project = await state.store.create(path, decoded.width, decoded.height);
+    final project = await state.store.create(path, width, height);
     if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => EditorScreen(project: project),
