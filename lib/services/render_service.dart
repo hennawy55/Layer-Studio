@@ -111,6 +111,7 @@ class RenderService {
       final fitted = exportDimensions(requestedWidth, height);
       final codec = await descriptor.instantiateCodec(
         targetWidth: fitted.width,
+        targetHeight: fitted.height,
       );
       try {
         final image = (await codec.getNextFrame()).image;
