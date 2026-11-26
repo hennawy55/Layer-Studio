@@ -14,7 +14,7 @@ foreach ($resourceFile in $resourceFiles) {
   if (!(Test-Path $resourceFile)) { continue }
 
   $content = Get-Content $resourceFile -Raw
-  $replacement = 'IDI_APP_ICON ICON "resources\app_icon.ico"'
+  $replacement = 'IDI_APP_ICON ICON "resources\\app_icon.ico"'
   $pattern = '(?m)^\s*IDI_APP_ICON\s+ICON\s+"[^"]+"\s*$'
   if ([regex]::IsMatch($content, $pattern)) {
     $content = [regex]::Replace($content, $pattern, $replacement)
