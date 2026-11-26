@@ -26,6 +26,8 @@ jobs:
       - name: Download licensed bundled fonts
         run: bash tool/fetch_fonts.sh
       - run: flutter pub get
+      - name: Generate Android and Windows launcher icons
+        run: dart run launcher_icons
       - name: Prepare Android app and plugin modules for API 36
         run: python3 tool/prepare_android.py
       - name: Format Dart source
@@ -50,6 +52,8 @@ jobs:
       - name: Install Android API 36 platform
         run: yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
       - run: flutter pub get
+      - name: Generate Android launcher icon
+        run: dart run launcher_icons
       - name: Prepare Android app and plugin modules for API 36
         run: python3 tool/prepare_android.py
       - run: flutter build apk --release
@@ -83,6 +87,7 @@ jobs:
         run: |
           dart format lib test
           flutter pub get
+          dart run launcher_icons
       - run: flutter build windows --release
       - name: Package Windows application folder
         shell: pwsh
