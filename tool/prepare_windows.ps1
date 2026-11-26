@@ -21,7 +21,7 @@ foreach ($resourceFile in $resourceFiles) {
   } else {
     $content += "`r`n$replacement`r`n"
   }
-  Set-Content -Path $resourceFile -Value $content -Encoding utf8
+  Set-Content -Path $resourceFile -Value $content -Encoding ascii
   $resourcePatched = $true
 }
 if (!$resourcePatched) {
@@ -37,7 +37,7 @@ foreach ($mainFile in @("windows/runner/main.cpp", "windows/runner/main.cpp.in")
     'window\.Create\(L"[^"]+"',
     'window.Create(L"Layer Studio"'
   )
-  Set-Content -Path $mainFile -Value $content -Encoding utf8
+  Set-Content -Path $mainFile -Value $content -Encoding ascii
 }
 
 Write-Host "Windows icon installed and native runner resources patched."
