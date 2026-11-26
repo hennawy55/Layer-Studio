@@ -26,21 +26,48 @@ class RenderService {
       Platform.isAndroid ? 16000000 : 50000000;
   static int get _maxExportSide => Platform.isAndroid ? 12000 : 30000;
 
-  static ExportDimensions exportDimensions(int width, int height) {
-    if (width <= 0 || height <= 0) {
-      throw const FormatException('Image dimensions are invalid.');
+  static ExportDimensions exportDimensions(int width, int height) =>
+      fitDimensions(
+        width,
+        height,
+        maxPixels: _maxExportPixels,
+        maxSide: _maxExportSide,
+      );
+
+  @visibleForTesting
+  static ExportDimensions fitDimensions(
+    int width,
+    int height, {
+    required int maxPixels,
+    required int maxSide,
+  }) {
+    if (width <= 0 ||
+        height <= 0 ||
+        maxPixels <= 0 ||
+        maxSide <= 0) {
+      throw const FormatException('Image dimensions or export limits are invalid.');
     }
+
     final scale = math.min(
       1.0,
       math.min(
-        _maxExportSide / math.max(width, height),
-        math.sqrt(_maxExportPixels / (width * height)),
+        maxSide / math.max(width, height),
+        math.sqrt(maxPixels / (width * height)),
       ),
     );
-    return ExportDimensions(
-      math.max(1, (width * scale).floor()),
-      math.max(1, (height * scale).floor()),
-    );
+    var outputWidth = math.max(1, (width * scale).floor());
+    var outputHeight = math.max(1, (height * scale).floor());
+
+    while (outputWidth * outputHeight > maxPixels ||
+        math.max(outputWidth, outputHeight) > maxSide) {
+      if (outputWidth >= outputHeight) {
+        outputWidth--;
+      } else {
+        outputHeight--;
+      }
+    }
+
+    return ExportDimensions(outputWidth, outputHeight);
   }
 
   Future<ui.Image> _decodeUiImage(String path, {int? targetWidth}) async {
@@ -65,8 +92,8 @@ class RenderService {
       }
     }
 
-    // Read the encoded image header first. This rejects huge files before
-    // allocating a full-resolution decoded bitmap.
+    // Read the encoded image header so the codec can decode directly to a
+    // safe output size instead of allocating the full-resolution bitmap.
     final buffer = await ui.ImmutableBuffer.fromFilePath(path);
     final descriptor = await ui.ImageDescriptor.encoded(buffer);
     try {
