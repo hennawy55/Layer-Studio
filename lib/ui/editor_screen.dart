@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -49,9 +48,14 @@ const _fontFamilies = <String>[
 ];
 
 class EditorScreen extends StatefulWidget {
-  const EditorScreen({super.key, required this.project});
+  const EditorScreen({
+    super.key,
+    required this.project,
+    this.isDraft = false,
+  });
 
   final EditorProject project;
+  final bool isDraft;
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
@@ -64,9 +68,9 @@ class _EditorScreenState extends State<EditorScreen> {
   final _uuid = const Uuid();
   final _undo = <List<Map<String, dynamic>>>[];
   final _redo = <List<Map<String, dynamic>>>[];
-  Timer? _saveTimer;
   final TransformationController _zoomController = TransformationController();
   final ValueNotifier<int> _canvasRevision = ValueNotifier<int>(0);
+  final ValueNotifier<int> _controlsRevision = ValueNotifier<int>(0);
   Map<String, dynamic>? _savedProjectSnapshot;
   int? _selected;
   bool _baseLoaded = false;
@@ -78,6 +82,7 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _zoomInitialized = false;
   bool _moveSelectedFromAnywhere = false;
   bool _continuousEditActive = false;
+  bool _isDraft = false;
   String? _loadError;
 
   static const double _maxPreviewCanvasSide = 2048;
@@ -111,16 +116,18 @@ class _EditorScreenState extends State<EditorScreen> {
   void initState() {
     super.initState();
     _store = context.read<AppState>().store;
+    _isDraft = widget.isDraft;
+    _dirty = widget.isDraft;
     _savedProjectSnapshot = _captureProject();
     _loadBase();
   }
 
   @override
   void dispose() {
-    _saveTimer?.cancel();
+    // Project changes stay in memory until the user explicitly chooses Save.
     _zoomController.dispose();
     _canvasRevision.dispose();
-    unawaited(_store.save(widget.project).catchError((_) {}));
+    _controlsRevision.dispose();
     super.dispose();
   }
 
@@ -172,9 +179,7 @@ class _EditorScreenState extends State<EditorScreen> {
           layer.assetHeight = dimensions.height;
         }
 
-        widget.project.formatVersion = 2;
-        await _store.save(widget.project);
-        _savedProjectSnapshot = _captureProject();
+        // Migration metadata is persisted only with explicit user approval.
       } else if (!await File(widget.project.originalPath).exists()) {
         throw StateError('Original image is missing.');
       }
@@ -215,7 +220,8 @@ class _EditorScreenState extends State<EditorScreen> {
       _moveSelectedFromAnywhere = false;
     });
     _canvasRevision.value++;
-    _autosave();
+    _controlsRevision.value++;
+    _markDirty();
   }
 
   void _undoAction() {
@@ -233,19 +239,13 @@ class _EditorScreenState extends State<EditorScreen> {
   Map<String, dynamic> _captureProject() =>
       jsonDecode(jsonEncode(widget.project.toJson())) as Map<String, dynamic>;
 
-  void _autosave() {
+  void _markDirty() {
     if (!_dirty && mounted) {
       setState(() => _dirty = true);
     }
-    if (_continuousEditActive) return;
-    _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(milliseconds: 900), () {
-      _saveNow();
-    });
   }
 
-  Future<bool> _saveNow({bool manual = false}) async {
-    _saveTimer?.cancel();
+  Future<bool> _saveNow() async {
     while (_saving) {
       await Future<void>.delayed(const Duration(milliseconds: 30));
       if (!mounted) return false;
@@ -254,10 +254,11 @@ class _EditorScreenState extends State<EditorScreen> {
     if (mounted) setState(() => _saving = true);
     try {
       await _store.save(widget.project);
-      if (manual) {
-        _savedProjectSnapshot = _captureProject();
-        if (mounted) setState(() => _dirty = false);
-        if (mounted) _message(_t('Project saved successfully', 'تم حفظ المشروع بنجاح'));
+      _isDraft = false;
+      _savedProjectSnapshot = _captureProject();
+      if (mounted) setState(() => _dirty = false);
+      if (mounted) {
+        _message(_t('Project saved successfully', 'تم حفظ المشروع بنجاح'));
       }
       return true;
     } catch (error) {
@@ -280,12 +281,15 @@ class _EditorScreenState extends State<EditorScreen> {
     widget.project.updatedAt = saved.updatedAt;
     widget.project.formatVersion = saved.formatVersion;
     widget.project.layers = saved.layers.map((layer) => layer.copy()).toList();
-    await _store.save(widget.project);
+    _undo.clear();
+    _redo.clear();
+    _canvasRevision.value++;
+    _controlsRevision.value++;
     if (mounted) setState(() => _dirty = false);
   }
 
   Future<void> _confirmLeave() async {
-    if (_exitDialogOpen || !_dirty || !mounted) return;
+    if (_exitDialogOpen || (!_dirty && !_isDraft) || !mounted) return;
     _exitDialogOpen = true;
     final action = await showDialog<String>(
       context: context,
@@ -293,8 +297,12 @@ class _EditorScreenState extends State<EditorScreen> {
       builder: (dialogContext) => AlertDialog(
         title: Text(_t('Unsaved changes', 'تغييرات غير محفوظة')),
         content: Text(_t(
-          'You have changes that were not manually saved. Save before leaving?',
-          'لديك تعديلات لم تحفظها يدوياً. هل تريد حفظها قبل الخروج؟',
+          _isDraft
+              ? 'This is a new draft. Save it to keep it in your projects, or discard it.'
+              : 'Your changes have not been saved. Save them before leaving?',
+          _isDraft
+              ? 'هذا مشروع جديد غير محفوظ. احفظه للاحتفاظ به ضمن مشاريعك أو تجاهله.'
+              : 'لديك تعديلات لم تحفظها. هل تريد حفظها قبل الخروج؟',
         )),
         actions: [
           TextButton(
@@ -316,13 +324,19 @@ class _EditorScreenState extends State<EditorScreen> {
     if (!mounted || action == null || action == 'stay') return;
 
     if (action == 'save') {
-      final saved = await _saveNow(manual: true);
+      final saved = await _saveNow();
       if (!saved || !mounted) return;
     } else if (action == 'discard') {
       try {
-        await _restoreLastSavedProject();
+        if (_isDraft) {
+          await _store.delete(widget.project.id);
+        } else {
+          await _restoreLastSavedProject();
+        }
       } catch (error) {
-        if (mounted) _message('${_t('Could not restore saved version', 'تعذرت استعادة النسخة المحفوظة')}: $error');
+        if (mounted) {
+          _message('${_t('Could not discard changes', 'تعذر تجاهل التعديلات')}: $error');
+        }
         return;
       }
     }
@@ -362,7 +376,8 @@ class _EditorScreenState extends State<EditorScreen> {
     controller.dispose();
     if (name == null || name.isEmpty) return;
     setState(() => widget.project.name = name);
-    _autosave();
+    _markDirty();
+    _controlsRevision.value++;
   }
 
   Future<void> _addText() async {
@@ -406,7 +421,8 @@ class _EditorScreenState extends State<EditorScreen> {
       ));
       _selected = widget.project.layers.length - 1;
     });
-    _autosave();
+    _markDirty();
+    _controlsRevision.value++;
   }
 
   Future<void> _addImage() async {
@@ -424,14 +440,8 @@ class _EditorScreenState extends State<EditorScreen> {
     try {
       final source = File(sourcePath);
       final appDir = await getApplicationSupportDirectory();
-      final assetDir = Directory(p.join(
-        appDir.path,
-        'LayerStudio',
-        'projects',
-        widget.project.id,
-        'assets',
-        'overlays',
-      ));
+      final projectAssets = await _store.assetsDirectory(widget.project.id);
+      final assetDir = Directory(p.join(projectAssets.path, 'overlays'));
       await assetDir.create(recursive: true);
 
       final extension = p.extension(source.path).toLowerCase();
@@ -471,7 +481,8 @@ class _EditorScreenState extends State<EditorScreen> {
         _moveSelectedFromAnywhere = false;
       });
       _canvasRevision.value++;
-      _autosave();
+      _controlsRevision.value++;
+      _markDirty();
     } catch (error) {
       if (mounted) {
         _message('${_t('Could not add image', 'تعذرت إضافة الصورة')}: $error');
@@ -649,15 +660,19 @@ class _EditorScreenState extends State<EditorScreen> {
       return;
     }
     if (!_continuousEditActive) _checkpoint();
-    setState(() => update(widget.project.layers[_selected!]));
-    if (!_continuousEditActive) _autosave();
+    update(widget.project.layers[_selected!]);
+    _canvasRevision.value++;
+    _controlsRevision.value++;
+    _markDirty();
   }
 
   void _updateAt(int index, void Function(EditorLayer layer) update) {
     if (index < 0 || index >= widget.project.layers.length) return;
     _checkpoint();
-    setState(() => update(widget.project.layers[index]));
-    _autosave();
+    update(widget.project.layers[index]);
+    _canvasRevision.value++;
+    _controlsRevision.value++;
+    _markDirty();
   }
 
   void _moveLayer(int index, int offset) {
@@ -670,7 +685,9 @@ class _EditorScreenState extends State<EditorScreen> {
       if (_selected == index) _selected = next;
       else if (_selected == next) _selected = index;
     });
-    _autosave();
+    _canvasRevision.value++;
+    _controlsRevision.value++;
+    _markDirty();
   }
 
   Future<void> _export() async {
@@ -853,7 +870,7 @@ class _EditorScreenState extends State<EditorScreen> {
             ),
             IconButton(
               tooltip: _t('Save', 'حفظ'),
-              onPressed: _saving ? null : () => _saveNow(manual: true),
+              onPressed: _saving ? null : _saveNow,
               icon: _saving
                   ? const SizedBox(
                       width: 18,
@@ -1056,7 +1073,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                 layer.y += details.delta.dy / _workspaceHeight;
                                 _canvasRevision.value++;
                               },
-                              onPanEnd: (_) => _autosave(),
+                              onPanEnd: (_) => _markDirty(),
                               child: const SizedBox.expand(),
                             ),
                           for (var i = 0; i < widget.project.layers.length; i++)
@@ -1258,7 +1275,7 @@ class _EditorScreenState extends State<EditorScreen> {
                   layer.y += details.delta.dy / _workspaceHeight;
                   _canvasRevision.value++;
                 },
-          onPanEnd: layer.locked ? null : (_) => _autosave(),
+          onPanEnd: layer.locked ? null : (_) => _markDirty(),
           child: Transform.rotate(
             angle: layer.rotation,
             child: Transform.scale(
@@ -1448,7 +1465,8 @@ class _EditorScreenState extends State<EditorScreen> {
               textDirection: _isArabic ? TextDirection.rtl : TextDirection.ltr,
               onChanged: (value) {
                 selected.text = value;
-                _autosave();
+                _canvasRevision.value++;
+                _markDirty();
               },
             ),
             const SizedBox(height: 12),
