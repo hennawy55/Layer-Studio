@@ -82,6 +82,7 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _moveSelectedFromAnywhere = false;
   bool _continuousEditActive = false;
   bool _isDraft = false;
+  int _editRevision = 0;
   String? _loadError;
 
   static const double _maxPreviewCanvasSide = 2048;
@@ -239,6 +240,7 @@ class _EditorScreenState extends State<EditorScreen> {
       jsonDecode(jsonEncode(widget.project.toJson())) as Map<String, dynamic>;
 
   void _markDirty() {
+    _editRevision++;
     if (!_dirty && mounted) {
       setState(() => _dirty = true);
     }
@@ -250,14 +252,29 @@ class _EditorScreenState extends State<EditorScreen> {
       if (!mounted) return false;
     }
 
+    final revisionAtStart = _editRevision;
+    // Save an immutable snapshot, so edits made while disk I/O is in progress
+    // remain visibly unsaved and cannot be accidentally included or cleared.
+    final snapshot = EditorProject.fromJson(_captureProject());
+
     if (mounted) setState(() => _saving = true);
     try {
-      await _store.save(widget.project);
+      await _store.save(snapshot);
+      widget.project.updatedAt = snapshot.updatedAt;
       _isDraft = false;
-      _savedProjectSnapshot = _captureProject();
-      if (mounted) setState(() => _dirty = false);
+      _savedProjectSnapshot = snapshot.toJson();
+
+      final allChangesSaved = _editRevision == revisionAtStart;
+      if (mounted) setState(() => _dirty = !allChangesSaved);
       if (mounted) {
-        _message(_t('Project saved successfully', 'تم حفظ المشروع بنجاح'));
+        _message(
+          allChangesSaved
+              ? _t('Project saved successfully', 'تم حفظ المشروع بنجاح')
+              : _t(
+                  'Snapshot saved. Newer changes are still unsaved.',
+                  'تم حفظ النسخة الحالية، وما زالت هناك تعديلات أحدث غير محفوظة.',
+                ),
+        );
       }
       return true;
     } catch (error) {
