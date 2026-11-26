@@ -25,7 +25,9 @@ class ProjectStore {
     return folder;
   }
 
-  Future<EditorProject> create(String imagePath) async {
+  /// Creates a working project folder without adding it to the saved list.
+  /// The project becomes persistent only after the user explicitly calls save.
+  Future<EditorProject> createDraft(String imagePath) async {
     final extension = p.extension(imagePath).toLowerCase();
     final keepJpeg = extension == '.jpg' || extension == '.jpeg';
 
@@ -46,7 +48,7 @@ class ProjectStore {
       );
 
       final now = DateTime.now();
-      final project = EditorProject(
+      return EditorProject(
         id: id,
         name: 'Untitled project',
         originalPath: originalCopy.path,
@@ -56,14 +58,27 @@ class ProjectStore {
         createdAt: now,
         updatedAt: now,
       );
-      await save(project);
-      return project;
     } catch (_) {
       if (await folder.exists()) {
         await folder.delete(recursive: true);
       }
       rethrow;
     }
+  }
+
+  /// Compatibility helper for callers that explicitly want an immediately
+  /// persisted project. The UI creates drafts instead.
+  Future<EditorProject> create(String imagePath) async {
+    final project = await createDraft(imagePath);
+    await save(project);
+    return project;
+  }
+
+  Future<Directory> assetsDirectory(String projectId) async {
+    final folder = await _folder(projectId);
+    final assets = Directory(p.join(folder.path, 'assets'));
+    await assets.create(recursive: true);
+    return assets;
   }
 
   Future<void> save(EditorProject project) async {
