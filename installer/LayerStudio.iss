@@ -1,5 +1,5 @@
 #define MyAppName "Layer Studio"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.3.1"
 #define MyAppPublisher "Layer Studio"
 #define MyAppExeName "layer_studio.exe"
 
