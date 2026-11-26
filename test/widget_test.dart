@@ -98,27 +98,42 @@ void main() {
     expect(restored.isSvg, isTrue);
   });
 
-  test('Image normalization applies EXIF orientation on a worker isolate', () async {
+  test('Image normalization applies all EXIF orientations exactly once', () async {
     final directory = await Directory.systemTemp.createTemp('layer-studio-test-');
     addTearDown(() => directory.delete(recursive: true));
 
-    final source = File('${directory.path}/camera.jpg');
-    final target = File('${directory.path}/upright.jpg');
-    final raw = img.Image(width: 2, height: 3);
-    raw.exif.imageIfd.orientation = 6;
-    await source.writeAsBytes(img.encodeJpg(raw));
+    for (var orientation = 1; orientation <= 8; orientation++) {
+      final source = File('${directory.path}/camera-$orientation.jpg');
+      final target = File('${directory.path}/upright-$orientation.jpg');
+      final raw = img.Image(width: 2, height: 3);
+      raw.exif.imageIfd.orientation = orientation;
+      await source.writeAsBytes(img.encodeJpg(raw));
 
-    final dimensions = await ImageService().normalizeToFile(
-      source.path,
-      target.path,
-      asJpeg: true,
-    );
-    final normalized = img.decodeImage(await target.readAsBytes());
+      final dimensions = await ImageService().normalizeToFile(
+        source.path,
+        target.path,
+        asJpeg: true,
+      );
+      final normalized = img.decodeImage(await target.readAsBytes());
+      final swapsAxes = orientation >= 5;
 
-    expect(dimensions.width, 3);
-    expect(dimensions.height, 2);
-    expect(normalized?.width, 3);
-    expect(normalized?.height, 2);
-    expect(normalized?.exif.imageIfd.hasOrientation, isFalse);
+      expect(
+        dimensions.width,
+        swapsAxes ? 3 : 2,
+        reason: 'EXIF orientation $orientation width',
+      );
+      expect(
+        dimensions.height,
+        swapsAxes ? 2 : 3,
+        reason: 'EXIF orientation $orientation height',
+      );
+      expect(normalized?.width, dimensions.width);
+      expect(normalized?.height, dimensions.height);
+      expect(
+        normalized?.exif.imageIfd.hasOrientation,
+        isFalse,
+        reason: 'EXIF orientation $orientation must be removed after baking',
+      );
+    }
   });
 }
