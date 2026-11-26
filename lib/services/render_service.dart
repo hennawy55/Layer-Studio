@@ -122,6 +122,7 @@ class RenderService {
     required Color color,
     Paint? foreground,
     bool includeShadow = true,
+    double renderScale = 1,
   }) {
     final containsArabic = RegExp(r'[؀-ۿ]').hasMatch(layer.text);
     final shadows = includeShadow &&
@@ -135,15 +136,18 @@ class RenderService {
                     .clamp(0.0, 1.0)
                     .toDouble(),
               ),
-              blurRadius: layer.shadowBlur,
-              offset: Offset(layer.shadowOffsetX, layer.shadowOffsetY),
+              blurRadius: layer.shadowBlur * renderScale,
+              offset: Offset(
+                layer.shadowOffsetX * renderScale,
+                layer.shadowOffsetY * renderScale,
+              ),
             ),
           ]
         : const <Shadow>[];
 
     final style = TextStyle(
       fontFamily: layer.fontFamily,
-      fontSize: layer.fontSize,
+      fontSize: layer.fontSize * renderScale,
       color: foreground == null ? color : null,
       foreground: foreground,
       fontWeight: layer.bold ? FontWeight.bold : FontWeight.normal,
@@ -162,7 +166,12 @@ class RenderService {
     );
   }
 
-  void _drawText(Canvas canvas, EditorLayer layer, int imageWidth) {
+  void _drawText(
+    Canvas canvas,
+    EditorLayer layer,
+    int imageWidth, {
+    required double renderScale,
+  }) {
     if (layer.text.isEmpty) return;
 
     if (layer.strokeWidth > 0) {
@@ -170,10 +179,11 @@ class RenderService {
         layer,
         color: Colors.transparent,
         includeShadow: false,
+        renderScale: renderScale,
         foreground: Paint()
           ..style = PaintingStyle.stroke
           ..strokeJoin = StrokeJoin.round
-          ..strokeWidth = layer.strokeWidth * 2
+          ..strokeWidth = layer.strokeWidth * renderScale * 2
           ..color = Color(layer.strokeColor).withValues(
             alpha: (Color(layer.strokeColor).a * layer.opacity)
                 .clamp(0.0, 1.0)
@@ -190,6 +200,7 @@ class RenderService {
 
     final fillPainter = _makeTextPainter(
       layer,
+      renderScale: renderScale,
       color: _effectiveTextColor(layer).withValues(
         alpha: (_effectiveTextColor(layer).a * layer.opacity)
             .clamp(0.0, 1.0)
@@ -209,8 +220,9 @@ class RenderService {
     EditorLayer layer,
     ui.Image overlay,
     int canvasWidth,
-    int canvasHeight,
-  ) {
+    int canvasHeight, {
+    required double renderScale,
+  }) {
     final aspectRatio = overlay.width / overlay.height;
     final displayWidth = math.min(
       canvasWidth * .30,
@@ -243,13 +255,16 @@ class RenderService {
           BlendMode.srcIn,
         )
         ..maskFilter = layer.shadowBlur > 0
-            ? MaskFilter.blur(BlurStyle.normal, layer.shadowBlur)
+            ? MaskFilter.blur(BlurStyle.normal, layer.shadowBlur * renderScale)
             : null;
 
       canvas.drawImageRect(
         overlay,
         source,
-        destination.shift(Offset(layer.shadowOffsetX, layer.shadowOffsetY)),
+        destination.shift(Offset(
+          layer.shadowOffsetX * renderScale,
+          layer.shadowOffsetY * renderScale,
+        )),
         shadowPaint,
       );
     }
@@ -269,8 +284,8 @@ class RenderService {
       const samples = 12;
       for (var i = 0; i < samples; i++) {
         final angle = (i / samples) * 6.283185307179586;
-        final dx = layer.strokeWidth * math.cos(angle);
-        final dy = layer.strokeWidth * math.sin(angle);
+        final dx = layer.strokeWidth * renderScale * math.cos(angle);
+        final dy = layer.strokeWidth * renderScale * math.sin(angle);
         canvas.drawImageRect(
           overlay,
           source,
@@ -303,6 +318,10 @@ class RenderService {
     final base = await _decodeUiImage(project.originalPath);
     final width = base.width;
     final height = base.height;
+    final renderScale = math.min(
+      width / math.max(1, project.width),
+      height / math.max(1, project.height),
+    );
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final loadedImages = <ui.Image>[];
@@ -339,10 +358,22 @@ class RenderService {
                 targetWidth: targetWidth,
               );
               loadedImages.add(overlay);
-              _drawImageLayer(canvas, layer, overlay, width, height);
+              _drawImageLayer(
+                canvas,
+                layer,
+                overlay,
+                width,
+                height,
+                renderScale: renderScale,
+              );
             }
           } else if (layer.type == LayerType.text) {
-            _drawText(canvas, layer, width);
+            _drawText(
+              canvas,
+              layer,
+              width,
+              renderScale: renderScale,
+            );
           }
         } finally {
           canvas.restore();
