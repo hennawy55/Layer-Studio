@@ -6,6 +6,7 @@ import 'package:layer_studio/models/editor_layer.dart';
 import 'package:layer_studio/models/editor_project.dart';
 import 'package:layer_studio/models/logo_asset.dart';
 import 'package:layer_studio/services/image_service.dart';
+import 'package:layer_studio/services/render_service.dart';
 
 void main() {
   test('EditorLayer JSON round trip preserves transform and effects', () {
@@ -96,6 +97,43 @@ void main() {
     expect(restored.name, logo.name);
     expect(restored.path, logo.path);
     expect(restored.isSvg, isTrue);
+  });
+
+
+  test('Large export dimensions are fitted under mobile memory limits', () {
+    const sourceWidth = 12000;
+    const sourceHeight = 9000;
+    const maxPixels = 16000000;
+    const maxSide = 12000;
+
+    final fitted = RenderService.fitDimensions(
+      sourceWidth,
+      sourceHeight,
+      maxPixels: maxPixels,
+      maxSide: maxSide,
+    );
+
+    expect(fitted.width * fitted.height, lessThanOrEqualTo(maxPixels));
+    expect(fitted.width, lessThanOrEqualTo(maxSide));
+    expect(fitted.height, lessThanOrEqualTo(maxSide));
+    expect(fitted.width, lessThan(sourceWidth));
+    expect(fitted.height, lessThan(sourceHeight));
+    expect(
+      (fitted.width / fitted.height - sourceWidth / sourceHeight).abs(),
+      lessThan(.001),
+    );
+  });
+
+  test('Small export dimensions remain at original resolution', () {
+    final fitted = RenderService.fitDimensions(
+      4000,
+      3000,
+      maxPixels: 16000000,
+      maxSide: 12000,
+    );
+
+    expect(fitted.width, 4000);
+    expect(fitted.height, 3000);
   });
 
   test('Image normalization applies all EXIF orientations exactly once', () async {
