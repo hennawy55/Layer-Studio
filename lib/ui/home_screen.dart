@@ -52,12 +52,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted || result == null || result.files.single.path == null) return;
 
       setState(() => _creating = true);
-      final project = await context.read<AppState>().store.create(
+      final project = await context.read<AppState>().store.createDraft(
             result.files.single.path!,
           );
       if (!mounted) return;
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => EditorScreen(project: project)),
+        MaterialPageRoute(builder: (_) => EditorScreen(project: project, isDraft: true)),
       );
       if (!mounted) return;
       await _refreshProjects();
