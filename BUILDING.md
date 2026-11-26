@@ -8,7 +8,7 @@
 
 ## Prepare the project
 
-Generate Android and Windows runner projects and fetch the 24 licensed Arabic/Latin font families:
+Generate Android and Windows runner projects, fetch the 24 licensed Arabic/Latin font families, and create the launcher icons:
 
 Linux/macOS:
 ```bash
@@ -16,6 +16,7 @@ flutter create --platforms=android,windows --project-name=layer_studio --org=com
 bash tool/fetch_fonts.sh
 python3 tool/prepare_android.py
 flutter pub get
+dart run launcher_icons
 dart format lib test
 flutter analyze
 flutter test
@@ -54,7 +55,7 @@ Outputs:
 The installer is not code-signed. Windows SmartScreen may show an unknown-publisher warning until a publisher certificate is used.
 
 ## GitHub Actions
-The `Build Layer Studio` workflow runs validation and builds APK + Windows x64. Use **Actions → Build Layer Studio → Run workflow** to start a build manually. Push a tag such as `v1.0.0` to publish the APK and Windows installer as a GitHub Release.
+The `Build Layer Studio` workflow runs validation and builds APK + Windows x64. Use **Actions → Build Layer Studio → Run workflow** to start a build manually. Push a tag such as `v1.1.0` to publish the APK and Windows installer as a GitHub Release.
 
 ## Runtime privacy and offline mode
 The app contains no login, remote database, analytics or runtime network client. User images, overlays, projects, and bundled fonts stay on the device. Internet is used only by developers/CI to retrieve package dependencies and font assets before producing the installable build.
