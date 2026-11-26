@@ -342,6 +342,13 @@ class _EditorScreenState extends State<EditorScreen> {
     if (action == 'save') {
       final saved = await _saveNow();
       if (!saved || !mounted) return;
+      if (_dirty) {
+        _message(_t(
+          'Newer edits remain unsaved. Save once more before leaving.',
+          'هناك تعديلات أحدث لم تُحفظ. اضغط حفظ مرة أخرى قبل الخروج.',
+        ));
+        return;
+      }
     } else if (action == 'discard') {
       try {
         if (_isDraft) {
