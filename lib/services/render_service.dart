@@ -14,7 +14,7 @@ class RenderService {
   static const int _maxExportPixels = 50000000;
   static const int _maxExportSide = 30000;
 
-  Future<ui.Image> _decodeUiImage(String path) async {
+  Future<ui.Image> _decodeUiImage(String path, {int? targetWidth}) async {
     if (path.toLowerCase().endsWith('.svg')) {
       final pictureInfo = await vg.loadPicture(SvgFileLoader(File(path)), null);
       try {
@@ -22,12 +22,24 @@ class RenderService {
         final sourceHeight = pictureInfo.size.height.ceil();
         if (sourceWidth <= 0 ||
             sourceHeight <= 0 ||
-            sourceWidth > 12000 ||
-            sourceHeight > 12000 ||
-            sourceWidth * sourceHeight > _maxExportPixels) {
+            sourceWidth > 30000 ||
+            sourceHeight > 30000 ||
+            (targetWidth == null &&
+                sourceWidth * sourceHeight > _maxExportPixels)) {
           throw const FormatException('Image dimensions are not supported.');
         }
-        return await pictureInfo.picture.toImage(sourceWidth, sourceHeight);
+        final outputWidth = targetWidth == null
+            ? sourceWidth
+            : math.min(sourceWidth, targetWidth);
+        final outputHeight = math.max(
+          1,
+          (outputWidth * sourceHeight / sourceWidth).round(),
+        );
+        if (outputHeight > 30000 ||
+            outputWidth * outputHeight > _maxExportPixels) {
+          throw const FormatException('Image dimensions are not supported.');
+        }
+        return await pictureInfo.picture.toImage(outputWidth, outputHeight);
       } finally {
         pictureInfo.picture.dispose();
       }
@@ -44,13 +56,17 @@ class RenderService {
           height <= 0 ||
           width > _maxExportSide ||
           height > _maxExportSide ||
-          width * height > _maxExportPixels) {
+          (targetWidth == null && width * height > _maxExportPixels)) {
         throw const FormatException(
           'This image is too large to export safely on this device.',
         );
       }
 
-      final codec = await descriptor.instantiateCodec();
+      final codec = await descriptor.instantiateCodec(
+        targetWidth: targetWidth == null
+            ? null
+            : math.max(1, math.min(width, targetWidth)),
+      );
       try {
         return (await codec.getNextFrame()).image;
       } finally {
@@ -288,7 +304,14 @@ class RenderService {
           if (layer.type == LayerType.image && layer.assetPath != null) {
             final file = File(layer.assetPath!);
             if (await file.exists()) {
-              final overlay = await _decodeUiImage(file.path);
+              final targetWidth = (width * .30 * layer.scale * 1.25)
+                  .round()
+                  .clamp(1, 12000)
+                  .toInt();
+              final overlay = await _decodeUiImage(
+                file.path,
+                targetWidth: targetWidth,
+              );
               loadedImages.add(overlay);
               _drawImageLayer(canvas, layer, overlay, width, height);
             }
