@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -439,7 +438,6 @@ class _EditorScreenState extends State<EditorScreen> {
   Future<void> _addImagePath(String sourcePath) async {
     try {
       final source = File(sourcePath);
-      final appDir = await getApplicationSupportDirectory();
       final projectAssets = await _store.assetsDirectory(widget.project.id);
       final assetDir = Directory(p.join(projectAssets.path, 'overlays'));
       await assetDir.create(recursive: true);
@@ -896,7 +894,10 @@ class _EditorScreenState extends State<EditorScreen> {
           builder: (context, constraints) {
             final desktop = constraints.maxWidth > 760;
             final canvas = _buildCanvas();
-            final tools = _buildTools(selected);
+            final tools = ValueListenableBuilder<int>(
+              valueListenable: _controlsRevision,
+              builder: (context, revision, child) => _buildTools(selected),
+            );
 
             if (desktop) {
               return Row(
@@ -913,56 +914,54 @@ class _EditorScreenState extends State<EditorScreen> {
               );
             }
 
-            return Stack(
-              fit: StackFit.expand,
+            final panelHeight = (constraints.maxHeight * .36)
+                .clamp(190.0, 270.0)
+                .toDouble();
+
+            return Column(
               children: [
-                Positioned.fill(child: canvas),
-                DraggableScrollableSheet(
-                  initialChildSize: .19,
-                  minChildSize: .13,
-                  maxChildSize: .78,
-                  snap: true,
-                  builder: (context, scrollController) => Material(
+                Expanded(
+                  child: ClipRect(child: canvas),
+                ),
+                SizedBox(
+                  height: panelHeight,
+                  child: Material(
                     color: Theme.of(context).colorScheme.surface,
-                    elevation: 12,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                    clipBehavior: Clip.antiAlias,
+                    elevation: 8,
                     child: Column(
                       children: [
-                        const SizedBox(height: 10),
                         Container(
-                          width: 38,
-                          height: 4,
+                          height: 48,
+                          padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 10, 0),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.outlineVariant,
-                            borderRadius: BorderRadius.circular(8),
+                            border: Border(
+                              top: BorderSide(
+                                color: Theme.of(context).colorScheme.outlineVariant,
+                              ),
+                            ),
                           ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsetsDirectional.fromSTEB(18, 10, 18, 4),
                           child: Row(
                             children: [
                               Expanded(
                                 child: Text(
                                   _t('Design tools', 'أدوات التصميم'),
-                                  style: Theme.of(context).textTheme.titleMedium,
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                 ),
                               ),
-                              Text(
-                                _t('Swipe up for options', 'اسحب لأعلى لعرض الخيارات'),
-                                style: Theme.of(context).textTheme.labelSmall,
-                              ),
+                              if (_dirty)
+                                Text(
+                                  _t('Not saved', 'غير محفوظ'),
+                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
                             ],
                           ),
                         ),
-                        Expanded(
-                          child: _buildTools(
-                            selected,
-                            scrollController: scrollController,
-                          ),
-                        ),
+                        Expanded(child: tools),
                       ],
                     ),
                   ),
@@ -1421,7 +1420,9 @@ class _EditorScreenState extends State<EditorScreen> {
                         widget.project.layers.removeAt(i);
                         _selected = null;
                       });
-                      _autosave();
+                      _canvasRevision.value++;
+                      _controlsRevision.value++;
+                      _markDirty();
                       break;
                   }
                 },
@@ -1832,7 +1833,7 @@ class _EditorScreenState extends State<EditorScreen> {
           onChanged: onChanged,
           onChangeEnd: (_) {
             _continuousEditActive = false;
-            _autosave();
+            _markDirty();
           },
         ),
       ],
