@@ -34,29 +34,36 @@ class ProjectStore {
     final assets = Directory(p.join(folder.path, 'assets'));
     await assets.create(recursive: true);
 
-    final originalCopy = File(
-      p.join(assets.path, keepJpeg ? 'original.jpg' : 'original.png'),
-    );
-    final dimensions = await _imageService.normalizeToFile(
-      imagePath,
-      originalCopy.path,
-      asJpeg: keepJpeg,
-      jpegQuality: 96,
-    );
+    try {
+      final originalCopy = File(
+        p.join(assets.path, keepJpeg ? 'original.jpg' : 'original.png'),
+      );
+      final dimensions = await _imageService.normalizeToFile(
+        imagePath,
+        originalCopy.path,
+        asJpeg: keepJpeg,
+        jpegQuality: 96,
+      );
 
-    final now = DateTime.now();
-    final project = EditorProject(
-      id: id,
-      name: 'Untitled project',
-      originalPath: originalCopy.path,
-      width: dimensions.width,
-      height: dimensions.height,
-      formatVersion: 2,
-      createdAt: now,
-      updatedAt: now,
-    );
-    await save(project);
-    return project;
+      final now = DateTime.now();
+      final project = EditorProject(
+        id: id,
+        name: 'Untitled project',
+        originalPath: originalCopy.path,
+        width: dimensions.width,
+        height: dimensions.height,
+        formatVersion: 2,
+        createdAt: now,
+        updatedAt: now,
+      );
+      await save(project);
+      return project;
+    } catch (_) {
+      if (await folder.exists()) {
+        await folder.delete(recursive: true);
+      }
+      rethrow;
+    }
   }
 
   Future<void> save(EditorProject project) async {
@@ -65,8 +72,23 @@ class ProjectStore {
     final temp = File(p.join(folder.path, 'project.json.tmp'));
     final target = File(p.join(folder.path, 'project.json'));
     await temp.writeAsString(jsonEncode(project.toJson()), flush: true);
-    if (await target.exists()) await target.delete();
-    await temp.rename(target.path);
+    if (!await target.exists()) {
+      await temp.rename(target.path);
+      return;
+    }
+
+    final backup = File('${target.path}.bak');
+    if (await backup.exists()) await backup.delete();
+    await target.rename(backup.path);
+    try {
+      await temp.rename(target.path);
+      if (await backup.exists()) await backup.delete();
+    } catch (_) {
+      if (!await target.exists() && await backup.exists()) {
+        await backup.rename(target.path);
+      }
+      rethrow;
+    }
   }
 
   Future<List<EditorProject>> listProjects() async {
