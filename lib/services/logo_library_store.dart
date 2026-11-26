@@ -62,9 +62,14 @@ class LogoLibraryStore {
       storedPath = p.join(_root.path, '$id.svg');
       await source.copy(storedPath);
     } else {
-      storedPath = p.join(_root.path, '$id.png');
-      final normalized = await _images.decode(source.path);
-      await _images.writePng(normalized, storedPath);
+      final keepJpeg = extension == '.jpg' || extension == '.jpeg';
+      storedPath = p.join(_root.path, '$id${keepJpeg ? '.jpg' : '.png'}');
+      await _images.normalizeToFile(
+        source.path,
+        storedPath,
+        asJpeg: keepJpeg,
+        jpegQuality: 95,
+      );
     }
 
     final logo = LogoAsset(
