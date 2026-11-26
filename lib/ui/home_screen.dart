@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import '../models/editor_project.dart';
@@ -113,16 +114,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Image.asset(
-                  'assets/branding/app_icon.png',
+                child: SvgPicture.asset(
+                  'assets/branding/app_icon.svg',
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(
-                      Icons.layers_rounded,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
                 ),
               ),
               const SizedBox(width: 10),
