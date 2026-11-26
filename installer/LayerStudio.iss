@@ -1,5 +1,5 @@
 #define MyAppName "Layer Studio"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "Layer Studio"
 #define MyAppExeName "layer_studio.exe"
 
@@ -16,6 +16,7 @@ OutputBaseFilename=Layer-Studio-Setup-x64
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\\windows\\runner\\resources\\app_icon.ico
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=lowest
