@@ -1,38 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#160b3d"/>
-      <stop offset=".55" stop-color="#241066"/>
-      <stop offset="1" stop-color="#090d35"/>
-    </linearGradient>
-    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#d1b4ff"/>
-      <stop offset=".52" stop-color="#8b5cf6"/>
-      <stop offset="1" stop-color="#4c32d8"/>
-    </linearGradient>
-    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#70e6ff"/>
-      <stop offset="1" stop-color="#3977ff"/>
-    </linearGradient>
-    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#30217b"/>
-      <stop offset="1" stop-color="#17124e"/>
-    </linearGradient>
-    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#ffffff" stop-opacity=".85"/>
-      <stop offset="1" stop-color="#d8c8ff" stop-opacity=".55"/>
-    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D18CFF"/><stop offset=".48" stop-color="#7355FF"/><stop offset="1" stop-color="#36E4F4"/></linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8C5BFF"/><stop offset=".52" stop-color="#5548D8"/><stop offset="1" stop-color="#087E9B"/></linearGradient>
+    <linearGradient id="cardBack" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8539E8"/><stop offset="1" stop-color="#075D84"/></linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B2FFFF"/><stop offset="1" stop-color="#26BCEB"/></linearGradient>
+    <linearGradient id="mountain" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F5EEFF"/><stop offset="1" stop-color="#9DDAFF"/></linearGradient>
+    <linearGradient id="mountain2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D8C4FF"/><stop offset="1" stop-color="#7A8FEA"/></linearGradient>
   </defs>
-  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
-  <circle cx="790" cy="210" r="245" fill="#6b3dff" opacity=".15"/>
-  <circle cx="192" cy="834" r="275" fill="#277cff" opacity=".12"/>
-  <path d="M180 376 550 196q34-17 67 3l225 125q40 23 5 51L479 575q-34 19-70 0L180 445q-38-23 0-69Z" fill="#7049ee" opacity=".72"/>
-  <path d="M180 449 550 268q34-17 67 3l225 125q40 23 5 51L479 647q-34 19-70 0L180 518q-38-23 0-69Z" fill="url(#blue)" opacity=".94"/>
-  <path d="M180 526 550 345q34-17 67 3l225 125q40 23 5 51L479 724q-34 19-70 0L180 595q-38-23 0-69Z" fill="url(#violet)" stroke="#eee6ff" stroke-width="13" stroke-linejoin="round"/>
-  <path d="M256 535 568 381q21-10 43 2l159 89q17 10 2 20L460 652q-21 11-43 0L256 571q-21-12 0-36Z" fill="url(#panel)" stroke="#bca9ff" stroke-width="8"/>
-  <circle cx="680" cy="454" r="37" fill="url(#blue)"/>
-  <path d="m291 555 105-91 65 57 60-80 124 126H291Z" fill="#6ee8ff" opacity=".92"/>
-  <path d="m291 555 105-91 65 57 60-80 124 126H291Z" fill="none" stroke="url(#shine)" stroke-width="12" stroke-linejoin="round"/>
-  <path d="M283 580 450 677q23 13 46 0l253-139" fill="none" stroke="#f5efff" stroke-opacity=".8" stroke-width="13" stroke-linecap="round"/>
-  <path d="M313 610 449 689q22 12 45 0l235-130" fill="none" stroke="#75e8ff" stroke-opacity=".85" stroke-width="10" stroke-linecap="round"/>
+  <rect width="1024" height="1024" rx="224" fill="#090D2B"/>
+  <rect x="42" y="42" width="940" height="940" rx="205" fill="#11133E" stroke="url(#edge)" stroke-width="22"/>
+  <circle cx="810" cy="205" r="188" fill="#4D43C8" opacity=".13"/>
+  <circle cx="188" cy="840" r="218" fill="#0AB7C9" opacity=".12"/>
+  <path d="M190 465 566 278q31-16 62 2l226 122q35 19 0 40L481 638q-31 16-63 0L190 507q-37-20 0-42Z" fill="#3422A8" stroke="#9B6DFF" stroke-width="10"/>
+  <path d="M190 545 566 358q31-16 62 2l226 122q35 19 0 40L481 718q-31 16-63 0L190 587q-37-20 0-42Z" fill="url(#cardBack)" stroke="#5B72EA" stroke-width="10"/>
+  <path d="M273 284q0-74 74-74h390q18 0 33 13l97 91q20 18 20 47v357q0 76-75 76H348q-75 0-75-76V284Z" fill="url(#card)" stroke="url(#edge)" stroke-width="18"/>
+  <path d="M737 211v86q0 45 45 45h105" fill="none" stroke="#E5D8FF" stroke-width="12" stroke-linejoin="round"/>
+  <rect x="350" y="355" width="430" height="330" rx="24" fill="#151754" fill-opacity=".72" stroke="#C2B4FF" stroke-opacity=".62" stroke-width="8"/>
+  <path d="M381 424v-30q0-18 18-18h33M738 376h24q18 0 18 18v31M780 616v31q0 18-18 18h-34M432 665h-33q-18 0-18-18v-31" fill="none" stroke="#F4F1FF" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="554" y="369" width="24" height="24" rx="7" fill="#F7F5FF"/>
+  <rect x="338" y="501" width="24" height="24" rx="7" fill="#F7F5FF"/>
+  <rect x="768" y="501" width="24" height="24" rx="7" fill="#B7F6FF"/>
+  <rect x="554" y="653" width="24" height="24" rx="7" fill="#B7F6FF"/>
+  <circle cx="462" cy="455" r="62" fill="url(#sun)"/>
+  <path d="M375 642 493 532q15-14 30 2l58 59 72-108q19-27 40 0l121 157H375Z" fill="url(#mountain2)"/>
+  <path d="M480 642 620 489q21-23 42 2l125 151H480Z" fill="url(#mountain)"/>
+  <path d="M375 642h395" stroke="#E7F5FF" stroke-opacity=".75" stroke-width="8" stroke-linecap="round"/>
+  <path d="M707 383q12 57 59 69-47 12-59 69-12-57-59-69 47-12 59-69Z" fill="#FFF4FF" stroke="#E3CBFF" stroke-width="7"/>
+  <circle cx="821" cy="420" r="9" fill="#6DEBFF"/>
 </svg>
