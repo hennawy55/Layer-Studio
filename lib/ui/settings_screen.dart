@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
@@ -145,17 +146,11 @@ class SettingsScreen extends StatelessWidget {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                      child: Image.asset(
-                        'assets/branding/app_icon.png',
+                      child: SvgPicture.asset(
+                        'assets/branding/app_icon.svg',
                         width: 56,
                         height: 56,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 56,
-                          height: 56,
-                          color: scheme.primaryContainer,
-                          child: Icon(Icons.layers_rounded, color: scheme.primary),
-                        ),
                       ),
                     ),
                     const SizedBox(width: 14),
