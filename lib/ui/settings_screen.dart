@@ -172,7 +172,7 @@ class SettingsScreen extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Version 1.3.0',
+                            'Version 1.3.1',
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: scheme.onSurfaceVariant,
                             ),
