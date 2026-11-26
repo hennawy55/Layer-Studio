@@ -82,6 +82,12 @@ class _EditorScreenState extends State<EditorScreen> {
 
   String _t(String en, String ar) => _isArabic ? ar : en;
 
+  bool get _moveAnywhereActive =>
+      _moveSelectedFromAnywhere &&
+      _selected != null &&
+      _selected! < widget.project.layers.length &&
+      !widget.project.layers[_selected!].locked;
+
   @override
   void initState() {
     super.initState();
@@ -855,8 +861,8 @@ class _EditorScreenState extends State<EditorScreen> {
               : InteractiveViewer(
                   transformationController: _zoomController,
                   constrained: false,
-                  panEnabled: !_moveSelectedFromAnywhere,
-                  scaleEnabled: !_moveSelectedFromAnywhere,
+                  panEnabled: !_moveAnywhereActive,
+                  scaleEnabled: !_moveAnywhereActive,
                   minScale: fitScale * 0.5,
                   maxScale: fitScale * 8,
                   boundaryMargin: EdgeInsets.all(
@@ -875,10 +881,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           fit: BoxFit.fill,
                           filterQuality: FilterQuality.high,
                         ),
-                        if (_moveSelectedFromAnywhere &&
-                            _selected != null &&
-                            _selected! < widget.project.layers.length &&
-                            !widget.project.layers[_selected!].locked)
+                        if (_moveAnywhereActive)
                           GestureDetector(
                             behavior: HitTestBehavior.translucent,
                             onPanStart: (_) => _checkpoint(),
@@ -1154,7 +1157,7 @@ class _EditorScreenState extends State<EditorScreen> {
         if (selected != null) ...[
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            value: _moveSelectedFromAnywhere && !selected.locked,
+            value: _moveAnywhereActive,
             onChanged: selected.locked
                 ? null
                 : (value) => setState(() => _moveSelectedFromAnywhere = value),
