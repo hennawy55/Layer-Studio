@@ -82,7 +82,11 @@ class RenderService {
         final requestedWidth = targetWidth == null
             ? sourceWidth
             : math.min(sourceWidth, targetWidth);
-        final fitted = exportDimensions(requestedWidth, sourceHeight);
+        final requestedHeight = math.max(
+          1,
+          (sourceHeight * requestedWidth / sourceWidth).round(),
+        );
+        final fitted = exportDimensions(requestedWidth, requestedHeight);
         return await pictureInfo.picture.toImage(
           fitted.width,
           fitted.height,
@@ -108,7 +112,11 @@ class RenderService {
       final requestedWidth = targetWidth == null
           ? width
           : math.min(width, targetWidth);
-      final fitted = exportDimensions(requestedWidth, height);
+      final requestedHeight = math.max(
+        1,
+        (height * requestedWidth / width).round(),
+      );
+      final fitted = exportDimensions(requestedWidth, requestedHeight);
       final codec = await descriptor.instantiateCodec(
         targetWidth: fitted.width,
         targetHeight: fitted.height,
