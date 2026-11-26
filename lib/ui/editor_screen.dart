@@ -807,28 +807,70 @@ class _EditorScreenState extends State<EditorScreen> {
             ),
           ),
           actions: [
-            IconButton(
-              tooltip: _t('Undo', 'تراجع'),
-              onPressed: _undo.isEmpty ? null : _undoAction,
-              icon: const Icon(Icons.undo),
-            ),
-            IconButton(
-              tooltip: _t('Redo', 'إعادة'),
-              onPressed: _redo.isEmpty ? null : _redoAction,
-              icon: const Icon(Icons.redo),
+            PopupMenuButton<String>(
+              tooltip: _t('More editing actions', 'المزيد من أدوات التحرير'),
+              onSelected: (value) {
+                switch (value) {
+                  case 'undo':
+                    _undoAction();
+                    break;
+                  case 'redo':
+                    _redoAction();
+                    break;
+                  case 'rename':
+                    _renameProject();
+                    break;
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'undo',
+                  enabled: _undo.isNotEmpty,
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.undo),
+                    title: Text(_t('Undo', 'تراجع')),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'redo',
+                  enabled: _redo.isNotEmpty,
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.redo),
+                    title: Text(_t('Redo', 'إعادة')),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'rename',
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.drive_file_rename_outline),
+                    title: Text(_t('Rename project', 'إعادة تسمية المشروع')),
+                  ),
+                ),
+              ],
             ),
             IconButton(
               tooltip: _t('Save', 'حفظ'),
               onPressed: _saving ? null : () => _saveNow(manual: true),
               icon: _saving
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.save_outlined),
             ),
             IconButton(
               tooltip: _t('Export', 'تصدير'),
               onPressed: _busy ? null : _export,
               icon: _busy
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.file_download_outlined),
             ),
           ],
@@ -945,7 +987,33 @@ class _EditorScreenState extends State<EditorScreen> {
               : const Color(0xFFE7E7EE),
           alignment: Alignment.center,
           child: !_baseLoaded
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(
+                  child: _loadError == null
+                      ? const CircularProgressIndicator()
+                      : Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.broken_image_outlined, size: 42),
+                              const SizedBox(height: 12),
+                              Text(
+                                _t('The project could not be opened', 'تعذر فتح المشروع'),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  setState(() => _loadError = null);
+                                  _loadBase();
+                                },
+                                icon: const Icon(Icons.refresh),
+                                label: Text(_t('Try again', 'إعادة المحاولة')),
+                              ),
+                            ],
+                          ),
+                        ),
+                )
               : InteractiveViewer(
                   transformationController: _zoomController,
                   constrained: false,
@@ -1171,9 +1239,11 @@ class _EditorScreenState extends State<EditorScreen> {
     return Positioned(
       left: layer.x * _workspaceWidth,
       top: layer.y * _workspaceHeight,
-      child: FractionalTranslation(
-        translation: const Offset(-.5, -.5),
-        child: GestureDetector(
+      child: RepaintBoundary(
+        key: ValueKey(layer.id),
+        child: FractionalTranslation(
+          translation: const Offset(-.5, -.5),
+          child: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onTap: () => _selectLayer(index),
           onPanStart: layer.locked
@@ -1220,7 +1290,8 @@ class _EditorScreenState extends State<EditorScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   TextAlign _textAlign(String alignment) => switch (alignment) {
