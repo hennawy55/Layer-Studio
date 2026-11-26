@@ -15,6 +15,7 @@ import 'package:uuid/uuid.dart';
 
 import '../models/editor_layer.dart';
 import '../models/editor_project.dart';
+import '../models/logo_asset.dart';
 import '../services/render_service.dart';
 import '../services/image_service.dart';
 import '../services/project_store.dart';
@@ -74,6 +75,7 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _allowPop = false;
   bool _exitDialogOpen = false;
   bool _zoomInitialized = false;
+  bool _moveSelectedFromAnywhere = false;
 
   bool get _isArabic =>
       Localizations.localeOf(context).languageCode == 'ar';
@@ -376,9 +378,12 @@ class _EditorScreenState extends State<EditorScreen> {
       withData: false,
     );
     if (result == null || result.files.single.path == null) return;
+    await _addImagePath(result.files.single.path!);
+  }
 
+  Future<void> _addImagePath(String sourcePath) async {
     try {
-      final source = File(result.files.single.path!);
+      final source = File(sourcePath);
       final appDir = await getApplicationSupportDirectory();
       final assetDir = Directory(p.join(
         appDir.path,
@@ -416,10 +421,172 @@ class _EditorScreenState extends State<EditorScreen> {
           assetHeight: assetHeight,
         ));
         _selected = widget.project.layers.length - 1;
+        _moveSelectedFromAnywhere = false;
       });
       _autosave();
     } catch (error) {
       _message('${_t('Could not add image', 'تعذرت إضافة الصورة')}: $error');
+    }
+  }
+
+  Future<void> _openLogoLibrary() async {
+    final library = context.read<AppState>().logoLibrary;
+    var logos = await library.listLogos();
+    if (!mounted) return;
+
+    final selectedLogo = await showDialog<LogoAsset>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final size = MediaQuery.sizeOf(dialogContext);
+          return AlertDialog(
+            title: Text(_t('Logo library', 'مكتبة الشعارات')),
+            content: SizedBox(
+              width: math.min(540.0, size.width - 48),
+              height: math.min(460.0, size.height * .62),
+              child: logos.isEmpty
+                  ? Center(
+                      child: Text(
+                        _t(
+                          'Your saved logos will appear here.',
+                          'الشعارات التي تحفظها ستظهر هنا.',
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : GridView.builder(
+                      itemCount: logos.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: .88,
+                      ),
+                      itemBuilder: (context, index) {
+                        final logo = logos[index];
+                        return Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () => Navigator.pop(dialogContext, logo),
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: logo.isSvg
+                                        ? SvgPicture.file(
+                                            File(logo.path),
+                                            fit: BoxFit.contain,
+                                          )
+                                        : Image.file(
+                                            File(logo.path),
+                                            fit: BoxFit.contain,
+                                            errorBuilder: (_, __, ___) =>
+                                                const Icon(Icons.broken_image_outlined),
+                                          ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                                  child: Text(
+                                    logo.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.labelSmall,
+                                  ),
+                                ),
+                                SizedBox(
+                                  height: 34,
+                                  child: Align(
+                                    alignment: Alignment.center,
+                                    child: IconButton(
+                                      visualDensity: VisualDensity.compact,
+                                      tooltip: _t('Delete logo', 'حذف الشعار'),
+                                      onPressed: () async {
+                                        final confirmed = await showDialog<bool>(
+                                          context: dialogContext,
+                                          builder: (confirmContext) => AlertDialog(
+                                            title: Text(_t('Delete logo?', 'حذف الشعار؟')),
+                                            content: Text(_t(
+                                              'This removes it from your saved logo library. Existing project layers will remain unchanged.',
+                                              'سيُحذف من مكتبة الشعارات فقط، وستظل الطبقات الموجودة في المشاريع كما هي.',
+                                            )),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(confirmContext, false),
+                                                child: Text(_t('Cancel', 'إلغاء')),
+                                              ),
+                                              FilledButton(
+                                                onPressed: () => Navigator.pop(confirmContext, true),
+                                                child: Text(_t('Delete', 'حذف')),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirmed != true) return;
+                                        try {
+                                          await library.deleteLogo(logo.id);
+                                          setDialogState(() {
+                                            logos = logos
+                                                .where((item) => item.id != logo.id)
+                                                .toList();
+                                          });
+                                        } catch (error) {
+                                          if (mounted) {
+                                            _message('${_t('Could not delete logo', 'تعذر حذف الشعار')}: $error');
+                                          }
+                                        }
+                                      },
+                                      icon: const Icon(Icons.delete_outline, size: 18),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(_t('Close', 'إغلاق')),
+              ),
+              FilledButton.icon(
+                onPressed: () async {
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: [
+                      'png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg',
+                    ],
+                    allowMultiple: false,
+                    withData: false,
+                  );
+                  if (result == null || result.files.single.path == null) return;
+                  try {
+                    final added = await library.addLogo(result.files.single.path!);
+                    setDialogState(() => logos = [...logos, added]);
+                  } catch (error) {
+                    if (mounted) {
+                      _message('${_t('Could not save logo', 'تعذر حفظ الشعار')}: $error');
+                    }
+                  }
+                },
+                icon: const Icon(Icons.add),
+                label: Text(_t('Add logo', 'إضافة شعار')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (selectedLogo != null && mounted) {
+      // Copy the selected library asset into this project. Deleting a logo
+      // from the library later must not break projects that already use it.
+      await _addImagePath(selectedLogo.path);
     }
   }
 
@@ -688,6 +855,8 @@ class _EditorScreenState extends State<EditorScreen> {
               : InteractiveViewer(
                   transformationController: _zoomController,
                   constrained: false,
+                  panEnabled: !_moveSelectedFromAnywhere,
+                  scaleEnabled: !_moveSelectedFromAnywhere,
                   minScale: fitScale * 0.5,
                   maxScale: fitScale * 8,
                   boundaryMargin: EdgeInsets.all(
@@ -706,6 +875,23 @@ class _EditorScreenState extends State<EditorScreen> {
                           fit: BoxFit.fill,
                           filterQuality: FilterQuality.high,
                         ),
+                        if (_moveSelectedFromAnywhere &&
+                            _selected != null &&
+                            _selected! < widget.project.layers.length &&
+                            !widget.project.layers[_selected!].locked)
+                          GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onPanStart: (_) => _checkpoint(),
+                            onPanUpdate: (details) {
+                              final layer = widget.project.layers[_selected!];
+                              setState(() {
+                                layer.x += details.delta.dx / widget.project.width;
+                                layer.y += details.delta.dy / widget.project.height;
+                              });
+                            },
+                            onPanEnd: (_) => _autosave(),
+                            child: const SizedBox.expand(),
+                          ),
                         for (var i = 0; i < widget.project.layers.length; i++)
                           if (widget.project.layers[i].visible)
                             _buildLayer(widget.project.layers[i], i),
@@ -956,10 +1142,32 @@ class _EditorScreenState extends State<EditorScreen> {
             FilledButton.tonalIcon(
               onPressed: _addImage,
               icon: const Icon(Icons.add_photo_alternate_outlined),
-              label: Text(_t('Image / logo', 'صورة / شعار')),
+              label: Text(_t('Image', 'صورة')),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: _openLogoLibrary,
+              icon: const Icon(Icons.collections_bookmark_outlined),
+              label: Text(_t('Logo library', 'مكتبة الشعارات')),
             ),
           ],
         ),
+        if (selected != null) ...[
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: _moveSelectedFromAnywhere && !selected.locked,
+            onChanged: selected.locked
+                ? null
+                : (value) => setState(() => _moveSelectedFromAnywhere = value),
+            title: Text(_t(
+              'Move selected layer from anywhere',
+              'تحريك العنصر المحدد من أي مكان',
+            )),
+            subtitle: Text(_t(
+              'Drag on empty canvas space to move it. Canvas pan and zoom pause while this is enabled.',
+              'اسحب من أي مساحة فارغة لتحريكه. يتوقف تحريك وتكبير لوحة العمل مؤقتاً أثناء التفعيل.',
+            )),
+          ),
+        ],
         const SizedBox(height: 14),
         Row(
           children: [
