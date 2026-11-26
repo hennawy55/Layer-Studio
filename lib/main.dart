@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import 'state/app_state.dart';
@@ -92,14 +93,9 @@ class _AppBootstrapState extends State<_AppBootstrap> {
                       ],
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: Image.asset(
+                    child: SvgPicture.asset(
                       'assets/branding/app_icon.svg',
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.layers_rounded,
-                        color: Colors.white,
-                        size: 64,
-                      ),
                     ),
                   ),
                   const SizedBox(height: 22),
