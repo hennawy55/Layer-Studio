@@ -944,10 +944,10 @@ class _EditorScreenState extends State<EditorScreen> {
               );
             }
 
-            final panelHeight = math.min(
-              260.0,
-              math.max(100.0, constraints.maxHeight * .32),
-            );
+            final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+            final panelHeight = keyboardOpen
+                ? math.min(240.0, math.max(150.0, constraints.maxHeight * .36))
+                : math.min(400.0, math.max(210.0, constraints.maxHeight * .44));
 
             return Column(
               children: [
