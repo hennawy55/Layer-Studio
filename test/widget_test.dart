@@ -1,9 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:layer_studio/models/editor_layer.dart';
+import 'package:layer_studio/models/editor_project.dart';
+import 'package:layer_studio/models/logo_asset.dart';
+import 'package:layer_studio/services/image_service.dart';
 
 void main() {
-  test('EditorLayer JSON round trip preserves transform and text', () {
+  test('EditorLayer JSON round trip preserves transform and effects', () {
     final layer = EditorLayer(
       id: 'test',
       type: LayerType.text,
@@ -26,6 +31,7 @@ void main() {
       shadowOffsetY: -2,
     );
     final restored = EditorLayer.fromJson(layer.toJson());
+
     expect(restored.text, 'مرحبا Hello');
     expect(restored.assetPath, 'assets/overlay.png');
     expect(restored.assetWidth, 1200);
@@ -44,14 +50,75 @@ void main() {
     expect(restored.shadowOffsetY, -2);
   });
 
-  test('EXIF orientation is baked into raster pixel dimensions', () {
+  test('New projects use version 2 and preserve that version in JSON', () {
+    final now = DateTime(2026, 11, 26);
+    final project = EditorProject(
+      id: 'p1',
+      name: 'Test',
+      originalPath: '/tmp/original.jpg',
+      width: 1200,
+      height: 800,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    expect(project.formatVersion, 2);
+    expect(EditorProject.fromJson(project.toJson()).formatVersion, 2);
+  });
+
+  test('Old project metadata remains marked for one-time migration', () {
+    final now = DateTime(2025, 1, 1);
+    final legacy = EditorProject.fromJson({
+      'format': 'layerstudio',
+      'formatVersion': 1,
+      'id': 'legacy',
+      'name': 'Old project',
+      'originalPath': '/tmp/old.png',
+      'width': 100,
+      'height': 80,
+      'createdAt': now.toIso8601String(),
+      'updatedAt': now.toIso8601String(),
+      'layers': [],
+    });
+
+    expect(legacy.formatVersion, 1);
+  });
+
+  test('Logo asset JSON round trip preserves its saved reference', () {
+    const logo = LogoAsset(
+      id: 'logo-1',
+      name: 'Brand mark',
+      path: '/logos/brand-mark.svg',
+    );
+
+    final restored = LogoAsset.fromJson(logo.toJson());
+    expect(restored.id, logo.id);
+    expect(restored.name, logo.name);
+    expect(restored.path, logo.path);
+    expect(restored.isSvg, isTrue);
+  });
+
+  test('Image normalization applies EXIF orientation on a worker isolate', () async {
+    final directory = await Directory.systemTemp.createTemp('layer-studio-test-');
+    addTearDown(() => directory.delete(recursive: true));
+
+    final source = File('${directory.path}/camera.jpg');
+    final target = File('${directory.path}/upright.jpg');
     final raw = img.Image(width: 2, height: 3);
     raw.exif.imageIfd.orientation = 6;
+    await source.writeAsBytes(img.encodeJpg(raw));
 
-    final upright = img.bakeOrientation(raw);
+    final dimensions = await ImageService().normalizeToFile(
+      source.path,
+      target.path,
+      asJpeg: true,
+    );
+    final normalized = img.decodeImage(await target.readAsBytes());
 
-    expect(upright.width, 3);
-    expect(upright.height, 2);
-    expect(upright.exif.imageIfd.hasOrientation, isFalse);
+    expect(dimensions.width, 3);
+    expect(dimensions.height, 2);
+    expect(normalized?.width, 3);
+    expect(normalized?.height, 2);
+    expect(normalized?.exif.imageIfd.hasOrientation, isFalse);
   });
 }
