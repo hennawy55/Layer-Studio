@@ -914,9 +914,10 @@ class _EditorScreenState extends State<EditorScreen> {
               );
             }
 
-            final panelHeight = (constraints.maxHeight * .36)
-                .clamp(190.0, 270.0)
-                .toDouble();
+            final panelHeight = math.min(
+              260.0,
+              math.max(100.0, constraints.maxHeight * .32),
+            );
 
             return Column(
               children: [
