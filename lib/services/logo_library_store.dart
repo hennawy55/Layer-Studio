@@ -80,7 +80,13 @@ class LogoLibraryStore {
 
   Future<void> deleteLogo(String id) async {
     final logos = await listLogos();
-    final target = logos.where((logo) => logo.id == id).firstOrNull;
+    LogoAsset? target;
+    for (final logo in logos) {
+      if (logo.id == id) {
+        target = logo;
+        break;
+      }
+    }
     if (target == null) return;
     final file = File(target.path);
     if (await file.exists()) await file.delete();
