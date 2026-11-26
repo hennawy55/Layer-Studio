@@ -16,6 +16,7 @@ import '../models/editor_project.dart';
 import '../models/logo_asset.dart';
 import '../services/render_service.dart';
 import '../services/image_service.dart';
+import '../services/image_import_picker.dart';
 import '../services/project_store.dart';
 import '../state/app_state.dart';
 
@@ -449,14 +450,15 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _addImage() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg'],
-      allowMultiple: false,
-      withData: false,
-    );
-    if (result == null || result.files.single.path == null) return;
-    await _addImagePath(result.files.single.path!);
+    try {
+      final path = await ImageImportPicker().pickImageOrSvg();
+      if (path == null) return;
+      await _addImagePath(path);
+    } catch (error) {
+      if (mounted) {
+        _message('${_t('Could not select image', 'تعذر اختيار الصورة')}: $error');
+      }
+    }
   }
 
   Future<void> _addImagePath(String sourcePath) async {
