@@ -717,6 +717,10 @@ class _EditorScreenState extends State<EditorScreen> {
   Future<void> _export() async {
     if (!_baseLoaded || _busy) return;
 
+    final outputDimensions = RenderService.exportDimensions(
+      widget.project.width,
+      widget.project.height,
+    );
     var format = 'png';
     var quality = 95;
     final options = await showDialog<bool>(
@@ -760,11 +764,20 @@ class _EditorScreenState extends State<EditorScreen> {
               ],
               const SizedBox(height: 8),
               Text(
-                _t(
-                  'Output dimensions: original image size',
-                  'أبعاد التصدير: نفس أبعاد الصورة الأصلية',
-                ),
+                outputDimensions.matches(
+                  widget.project.width,
+                  widget.project.height,
+                )
+                    ? _t(
+                        'Output dimensions: ${outputDimensions.width} × ${outputDimensions.height}',
+                        'أبعاد التصدير: ${outputDimensions.width} × ${outputDimensions.height}',
+                      )
+                    : _t(
+                        'Large image optimized to ${outputDimensions.width} × ${outputDimensions.height} for this device. Your project original stays unchanged.',
+                        'سيتم تصغير أبعاد الصورة الكبيرة إلى ${outputDimensions.width} × ${outputDimensions.height} بما يناسب الجهاز، مع الاحتفاظ بأصل المشروع دون تغيير.',
+                      ),
                 style: Theme.of(dialogContext).textTheme.bodySmall,
+                textAlign: TextAlign.center,
               ),
             ],
           ),
