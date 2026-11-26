@@ -10,9 +10,38 @@ import 'package:image/image.dart' as img;
 import '../models/editor_layer.dart';
 import '../models/editor_project.dart';
 
+class ExportDimensions {
+  const ExportDimensions(this.width, this.height);
+
+  final int width;
+  final int height;
+
+  bool matches(int sourceWidth, int sourceHeight) =>
+      width == sourceWidth && height == sourceHeight;
+}
+
 class RenderService {
-  static const int _maxExportPixels = 50000000;
-  static const int _maxExportSide = 30000;
+  // Keep Android export surfaces within a practical memory budget.
+  static int get _maxExportPixels =>
+      Platform.isAndroid ? 16000000 : 50000000;
+  static int get _maxExportSide => Platform.isAndroid ? 12000 : 30000;
+
+  static ExportDimensions exportDimensions(int width, int height) {
+    if (width <= 0 || height <= 0) {
+      throw const FormatException('Image dimensions are invalid.');
+    }
+    final scale = math.min(
+      1.0,
+      math.min(
+        _maxExportSide / math.max(width, height),
+        math.sqrt(_maxExportPixels / (width * height)),
+      ),
+    );
+    return ExportDimensions(
+      math.max(1, (width * scale).floor()),
+      math.max(1, (height * scale).floor()),
+    );
+  }
 
   Future<ui.Image> _decodeUiImage(String path, {int? targetWidth}) async {
     if (path.toLowerCase().endsWith('.svg')) {
@@ -20,26 +49,17 @@ class RenderService {
       try {
         final sourceWidth = pictureInfo.size.width.ceil();
         final sourceHeight = pictureInfo.size.height.ceil();
-        if (sourceWidth <= 0 ||
-            sourceHeight <= 0 ||
-            sourceWidth > 30000 ||
-            sourceHeight > 30000 ||
-            (targetWidth == null &&
-                sourceWidth * sourceHeight > _maxExportPixels)) {
+        if (sourceWidth <= 0 || sourceHeight <= 0) {
           throw const FormatException('Image dimensions are not supported.');
         }
-        final outputWidth = targetWidth == null
+        final requestedWidth = targetWidth == null
             ? sourceWidth
             : math.min(sourceWidth, targetWidth);
-        final outputHeight = math.max(
-          1,
-          (outputWidth * sourceHeight / sourceWidth).round(),
+        final fitted = exportDimensions(requestedWidth, sourceHeight);
+        return await pictureInfo.picture.toImage(
+          fitted.width,
+          fitted.height,
         );
-        if (outputHeight > 30000 ||
-            outputWidth * outputHeight > _maxExportPixels) {
-          throw const FormatException('Image dimensions are not supported.');
-        }
-        return await pictureInfo.picture.toImage(outputWidth, outputHeight);
       } finally {
         pictureInfo.picture.dispose();
       }
@@ -52,23 +72,29 @@ class RenderService {
     try {
       final width = descriptor.width;
       final height = descriptor.height;
-      if (width <= 0 ||
-          height <= 0 ||
-          width > _maxExportSide ||
-          height > _maxExportSide ||
-          (targetWidth == null && width * height > _maxExportPixels)) {
-        throw const FormatException(
-          'This image is too large to export safely on this device.',
-        );
+      if (width <= 0 || height <= 0) {
+        throw const FormatException('Image dimensions are invalid.');
       }
 
+      // Downsample before allocating the decoded bitmap. Large source photos
+      // are no longer rejected solely because of their original pixel count.
+      final requestedWidth = targetWidth == null
+          ? width
+          : math.min(width, targetWidth);
+      final fitted = exportDimensions(requestedWidth, height);
       final codec = await descriptor.instantiateCodec(
-        targetWidth: targetWidth == null
-            ? null
-            : math.max(1, math.min(width, targetWidth)),
+        targetWidth: fitted.width,
       );
       try {
-        return (await codec.getNextFrame()).image;
+        final image = (await codec.getNextFrame()).image;
+        if (image.width * image.height > _maxExportPixels ||
+            math.max(image.width, image.height) > _maxExportSide) {
+          image.dispose();
+          throw const FormatException(
+            'The image decoder could not safely resize this image.',
+          );
+        }
+        return image;
       } finally {
         codec.dispose();
       }
