@@ -26,26 +26,32 @@ class ProjectStore {
   }
 
   Future<EditorProject> create(String imagePath) async {
-    // Decode and bake EXIF orientation before measuring or displaying the
-    // source image. Store a lossless PNG so Android and Windows render it
-    // identically, independent of platform EXIF handling.
-    final normalized = await _imageService.decode(imagePath);
+    final extension = p.extension(imagePath).toLowerCase();
+    final keepJpeg = extension == '.jpg' || extension == '.jpeg';
 
     final id = _uuid.v4();
     final folder = await _folder(id);
     final assets = Directory(p.join(folder.path, 'assets'));
     await assets.create(recursive: true);
 
-    final originalCopy = File(p.join(assets.path, 'original.png'));
-    await _imageService.writePng(normalized, originalCopy.path);
+    final originalCopy = File(
+      p.join(assets.path, keepJpeg ? 'original.jpg' : 'original.png'),
+    );
+    final dimensions = await _imageService.normalizeToFile(
+      imagePath,
+      originalCopy.path,
+      asJpeg: keepJpeg,
+      jpegQuality: 96,
+    );
 
     final now = DateTime.now();
     final project = EditorProject(
       id: id,
       name: 'Untitled project',
       originalPath: originalCopy.path,
-      width: normalized.width,
-      height: normalized.height,
+      width: dimensions.width,
+      height: dimensions.height,
+      formatVersion: 2,
       createdAt: now,
       updatedAt: now,
     );
@@ -73,13 +79,14 @@ class ProjectStore {
       if (!await file.exists()) continue;
 
       try {
-        final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        final data =
+            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
         final project = EditorProject.fromJson(data);
         if (await File(project.originalPath).exists()) {
           result.add(project);
         }
       } catch (_) {
-        // Skip damaged project metadata without blocking other projects.
+        // Skip one damaged project without preventing other projects loading.
       }
     }
 
