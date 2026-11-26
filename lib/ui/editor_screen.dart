@@ -66,6 +66,7 @@ class _EditorScreenState extends State<EditorScreen> {
   final _redo = <List<Map<String, dynamic>>>[];
   Timer? _saveTimer;
   final TransformationController _zoomController = TransformationController();
+  final ValueNotifier<int> _canvasRevision = ValueNotifier<int>(0);
   Map<String, dynamic>? _savedProjectSnapshot;
   int? _selected;
   bool _baseLoaded = false;
@@ -76,6 +77,24 @@ class _EditorScreenState extends State<EditorScreen> {
   bool _exitDialogOpen = false;
   bool _zoomInitialized = false;
   bool _moveSelectedFromAnywhere = false;
+  bool _continuousEditActive = false;
+  String? _loadError;
+
+  static const double _maxPreviewCanvasSide = 2048;
+  static const int _maxPreviewImageSide = 1400;
+
+  double get _previewScale => math.min(
+        1.0,
+        _maxPreviewCanvasSide /
+            math.max(widget.project.width, widget.project.height),
+      );
+  double get _workspaceWidth => math.max(1.0, widget.project.width * _previewScale);
+  double get _workspaceHeight => math.max(1.0, widget.project.height * _previewScale);
+
+  int _previewDimension(int value, int other) {
+    final factor = math.min(1.0, _maxPreviewImageSide / math.max(value, other));
+    return math.max(1, (value * factor).round());
+  }
 
   bool get _isArabic =>
       Localizations.localeOf(context).languageCode == 'ar';
@@ -100,65 +119,77 @@ class _EditorScreenState extends State<EditorScreen> {
   void dispose() {
     _saveTimer?.cancel();
     _zoomController.dispose();
-    unawaited(_store.save(widget.project));
+    _canvasRevision.dispose();
+    unawaited(_store.save(widget.project).catchError((_) {}));
     super.dispose();
   }
 
   Future<void> _loadBase() async {
     try {
-      var changed = false;
-      final source = File(widget.project.originalPath);
-      if (!await source.exists()) {
+      // Legacy projects are normalized once; current projects open without
+      // decoding full-resolution source images just to inspect their metadata.
+      if (widget.project.formatVersion < 2) {
+        final source = File(widget.project.originalPath);
+        if (!await source.exists()) throw StateError('Original image is missing.');
+
+        final baseExtension = p.extension(source.path).toLowerCase();
+        final baseIsJpeg = baseExtension == '.jpg' || baseExtension == '.jpeg';
+        final baseTarget = File(p.join(
+          source.parent.path,
+          baseIsJpeg ? 'original-upright.jpg' : 'original-upright.png',
+        ));
+        final baseDimensions = await _imageService.normalizeToFile(
+          source.path,
+          baseTarget.path,
+          asJpeg: baseIsJpeg,
+          jpegQuality: 96,
+        );
+        widget.project.originalPath = baseTarget.path;
+        widget.project.width = baseDimensions.width;
+        widget.project.height = baseDimensions.height;
+
+        for (final layer in widget.project.layers) {
+          if (layer.type != LayerType.image || layer.assetPath == null) continue;
+          final overlay = File(layer.assetPath!);
+          if (!await overlay.exists() ||
+              p.extension(overlay.path).toLowerCase() == '.svg') {
+            continue;
+          }
+          final extension = p.extension(overlay.path).toLowerCase();
+          final isJpeg = extension == '.jpg' || extension == '.jpeg';
+          final normalizedPath = p.join(
+            overlay.parent.path,
+            '${_uuid.v4()}-upright${isJpeg ? '.jpg' : '.png'}',
+          );
+          final dimensions = await _imageService.normalizeToFile(
+            overlay.path,
+            normalizedPath,
+            asJpeg: isJpeg,
+            jpegQuality: 95,
+          );
+          layer.assetPath = normalizedPath;
+          layer.assetWidth = dimensions.width;
+          layer.assetHeight = dimensions.height;
+        }
+
+        widget.project.formatVersion = 2;
+        await _store.save(widget.project);
+        _savedProjectSnapshot = _captureProject();
+      } else if (!await File(widget.project.originalPath).exists()) {
         throw StateError('Original image is missing.');
       }
 
-      final normalizedBase = await _imageService.decode(source.path);
-      if (p.extension(source.path).toLowerCase() != '.png' ||
-          widget.project.width != normalizedBase.width ||
-          widget.project.height != normalizedBase.height) {
-        final target = File(p.join(source.parent.path, 'original-upright.png'));
-        await _imageService.writePng(normalizedBase, target.path);
-        widget.project.originalPath = target.path;
-        widget.project.width = normalizedBase.width;
-        widget.project.height = normalizedBase.height;
-        changed = true;
+      if (mounted) {
+        setState(() {
+          _baseLoaded = true;
+          _loadError = null;
+        });
       }
-
-      // Migrate older raster overlays too, so projects created by previous
-      // builds no longer depend on platform-specific EXIF decoding.
-      for (final layer in widget.project.layers) {
-        if (layer.type != LayerType.image ||
-            layer.assetPath == null ||
-            p.extension(layer.assetPath!).toLowerCase() == '.svg') {
-          continue;
-        }
-        final overlayFile = File(layer.assetPath!);
-        if (!await overlayFile.exists()) continue;
-
-        final normalizedOverlay = await _imageService.decode(overlayFile.path);
-        if (p.extension(overlayFile.path).toLowerCase() != '.png') {
-          final target = File(
-            p.join(overlayFile.parent.path, '${_uuid.v4()}-upright.png'),
-          );
-          await _imageService.writePng(normalizedOverlay, target.path);
-          layer.assetPath = target.path;
-          changed = true;
-        }
-        if (layer.assetWidth != normalizedOverlay.width ||
-            layer.assetHeight != normalizedOverlay.height) {
-          layer.assetWidth = normalizedOverlay.width;
-          layer.assetHeight = normalizedOverlay.height;
-          changed = true;
-        }
-      }
-
-      if (changed) {
-        await _store.save(widget.project);
-        _savedProjectSnapshot = _captureProject();
-      }
-      if (mounted) setState(() => _baseLoaded = true);
     } catch (error) {
-      if (mounted) _message('${_t('Could not open image', 'تعذر فتح الصورة')}: $error');
+      if (mounted) {
+        setState(() => _loadError = error.toString());
+        _message('${_t('Could not open image', 'تعذر فتح الصورة')}: $error');
+      }
     }
   }
 
@@ -179,11 +210,11 @@ class _EditorScreenState extends State<EditorScreen> {
 
   void _restore(List<Map<String, dynamic>> snapshot) {
     setState(() {
-      widget.project.layers = snapshot
-          .map(EditorLayer.fromJson)
-          .toList();
+      widget.project.layers = snapshot.map(EditorLayer.fromJson).toList();
       _selected = null;
+      _moveSelectedFromAnywhere = false;
     });
+    _canvasRevision.value++;
     _autosave();
   }
 
@@ -206,8 +237,9 @@ class _EditorScreenState extends State<EditorScreen> {
     if (!_dirty && mounted) {
       setState(() => _dirty = true);
     }
+    if (_continuousEditActive) return;
     _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(milliseconds: 700), () {
+    _saveTimer = Timer(const Duration(milliseconds: 900), () {
       _saveNow();
     });
   }
@@ -246,6 +278,7 @@ class _EditorScreenState extends State<EditorScreen> {
     widget.project.height = saved.height;
     widget.project.createdAt = saved.createdAt;
     widget.project.updatedAt = saved.updatedAt;
+    widget.project.formatVersion = saved.formatVersion;
     widget.project.layers = saved.layers.map((layer) => layer.copy()).toList();
     await _store.save(widget.project);
     if (mounted) setState(() => _dirty = false);
@@ -405,18 +438,26 @@ class _EditorScreenState extends State<EditorScreen> {
       var assetWidth = 0;
       var assetHeight = 0;
       late final File target;
-
       if (extension == '.svg') {
         target = File(p.join(assetDir.path, '${_uuid.v4()}.svg'));
         await source.copy(target.path);
       } else {
-        final normalized = await _imageService.decode(source.path);
-        target = File(p.join(assetDir.path, '${_uuid.v4()}.png'));
-        await _imageService.writePng(normalized, target.path);
-        assetWidth = normalized.width;
-        assetHeight = normalized.height;
+        final keepJpeg = extension == '.jpg' || extension == '.jpeg';
+        target = File(p.join(
+          assetDir.path,
+          '${_uuid.v4()}${keepJpeg ? '.jpg' : '.png'}',
+        ));
+        final dimensions = await _imageService.normalizeToFile(
+          source.path,
+          target.path,
+          asJpeg: keepJpeg,
+          jpegQuality: 95,
+        );
+        assetWidth = dimensions.width;
+        assetHeight = dimensions.height;
       }
 
+      if (!mounted) return;
       _checkpoint();
       setState(() {
         widget.project.layers.add(EditorLayer(
@@ -429,9 +470,12 @@ class _EditorScreenState extends State<EditorScreen> {
         _selected = widget.project.layers.length - 1;
         _moveSelectedFromAnywhere = false;
       });
+      _canvasRevision.value++;
       _autosave();
     } catch (error) {
-      _message('${_t('Could not add image', 'تعذرت إضافة الصورة')}: $error');
+      if (mounted) {
+        _message('${_t('Could not add image', 'تعذرت إضافة الصورة')}: $error');
+      }
     }
   }
 
@@ -604,9 +648,9 @@ class _EditorScreenState extends State<EditorScreen> {
     if (_selected == null || _selected! >= widget.project.layers.length) {
       return;
     }
-    _checkpoint();
+    if (!_continuousEditActive) _checkpoint();
     setState(() => update(widget.project.layers[_selected!]));
-    _autosave();
+    if (!_continuousEditActive) _autosave();
   }
 
   void _updateAt(int index, void Function(EditorLayer layer) update) {
@@ -810,14 +854,58 @@ class _EditorScreenState extends State<EditorScreen> {
               );
             }
 
-            return Column(
+            return Stack(
+              fit: StackFit.expand,
               children: [
-                Expanded(child: canvas),
-                SizedBox(
-                  height: math.min(340.0, constraints.maxHeight * .49),
-                  child: Material(
+                Positioned.fill(child: canvas),
+                DraggableScrollableSheet(
+                  initialChildSize: .19,
+                  minChildSize: .13,
+                  maxChildSize: .78,
+                  snap: true,
+                  builder: (context, scrollController) => Material(
                     color: Theme.of(context).colorScheme.surface,
-                    child: tools,
+                    elevation: 12,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 10),
+                        Container(
+                          width: 38,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsetsDirectional.fromSTEB(18, 10, 18, 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _t('Design tools', 'أدوات التصميم'),
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                              ),
+                              Text(
+                                _t('Swipe up for options', 'اسحب لأعلى لعرض الخيارات'),
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildTools(
+                            selected,
+                            scrollController: scrollController,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -835,16 +923,16 @@ class _EditorScreenState extends State<EditorScreen> {
         final availableWidth = math.max(1.0, constraints.maxWidth - 32);
         final availableHeight = math.max(1.0, constraints.maxHeight - 32);
         final fitScale = math.min(
-          availableWidth / widget.project.width,
-          availableHeight / widget.project.height,
+          availableWidth / _workspaceWidth,
+          availableHeight / _workspaceHeight,
         ).clamp(0.02, 1.0).toDouble();
 
         if (!_zoomInitialized && _baseLoaded) {
           _zoomInitialized = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            final offsetX = (constraints.maxWidth - widget.project.width * fitScale) / 2;
-            final offsetY = (constraints.maxHeight - widget.project.height * fitScale) / 2;
+            final offsetX = (constraints.maxWidth - _workspaceWidth * fitScale) / 2;
+            final offsetY = (constraints.maxHeight - _workspaceHeight * fitScale) / 2;
             _zoomController.value = Matrix4.identity()
               ..translate(offsetX, offsetY)
               ..scale(fitScale);
@@ -870,35 +958,44 @@ class _EditorScreenState extends State<EditorScreen> {
                   ),
                   clipBehavior: Clip.hardEdge,
                   child: SizedBox(
-                    width: widget.project.width.toDouble(),
-                    height: widget.project.height.toDouble(),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      clipBehavior: Clip.none,
-                      children: [
-                        Image.file(
-                          File(widget.project.originalPath),
-                          fit: BoxFit.fill,
-                          filterQuality: FilterQuality.high,
-                        ),
-                        if (_moveAnywhereActive)
-                          GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onPanStart: (_) => _checkpoint(),
-                            onPanUpdate: (details) {
-                              final layer = widget.project.layers[_selected!];
-                              setState(() {
-                                layer.x += details.delta.dx / widget.project.width;
-                                layer.y += details.delta.dy / widget.project.height;
-                              });
-                            },
-                            onPanEnd: (_) => _autosave(),
-                            child: const SizedBox.expand(),
+                    width: _workspaceWidth,
+                    height: _workspaceHeight,
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _canvasRevision,
+                      builder: (context, revision, child) => Stack(
+                        fit: StackFit.expand,
+                        clipBehavior: Clip.none,
+                        children: [
+                          RepaintBoundary(
+                            child: Image.file(
+                              File(widget.project.originalPath),
+                              width: _workspaceWidth,
+                              height: _workspaceHeight,
+                              cacheWidth: _workspaceWidth.ceil(),
+                              cacheHeight: _workspaceHeight.ceil(),
+                              fit: BoxFit.fill,
+                              gaplessPlayback: true,
+                              filterQuality: FilterQuality.medium,
+                            ),
                           ),
-                        for (var i = 0; i < widget.project.layers.length; i++)
-                          if (widget.project.layers[i].visible)
-                            _buildLayer(widget.project.layers[i], i),
-                      ],
+                          if (_moveAnywhereActive)
+                            GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onPanStart: (_) => _checkpoint(),
+                              onPanUpdate: (details) {
+                                final layer = widget.project.layers[_selected!];
+                                layer.x += details.delta.dx / _workspaceWidth;
+                                layer.y += details.delta.dy / _workspaceHeight;
+                                _canvasRevision.value++;
+                              },
+                              onPanEnd: (_) => _autosave(),
+                              child: const SizedBox.expand(),
+                            ),
+                          for (var i = 0; i < widget.project.layers.length; i++)
+                            if (widget.project.layers[i].visible)
+                              _buildLayer(widget.project.layers[i], i),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -914,8 +1011,8 @@ class _EditorScreenState extends State<EditorScreen> {
     final displayWidth = math.max(
       1.0,
       math.min(
-        widget.project.width * .30,
-        widget.project.height * .30 * aspectRatio,
+        _workspaceWidth * .30,
+        _workspaceHeight * .30 * aspectRatio,
       ),
     );
 
@@ -930,11 +1027,16 @@ class _EditorScreenState extends State<EditorScreen> {
     if (p.extension(layer.assetPath!).toLowerCase() == '.svg') {
       return SvgPicture.file(file, width: displayWidth, fit: BoxFit.contain);
     }
+    final width = layer.assetWidth > 0 ? layer.assetWidth : 1200;
+    final height = layer.assetHeight > 0 ? layer.assetHeight : 1200;
     return Image.file(
       file,
       width: displayWidth,
+      cacheWidth: _previewDimension(width, height),
+      cacheHeight: _previewDimension(height, width),
       fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.medium,
     );
   }
 
@@ -1023,8 +1125,8 @@ class _EditorScreenState extends State<EditorScreen> {
           : null;
       final outlined = <Widget>[];
       if (layer.strokeWidth > 0) {
-        for (var i = 0; i < 20; i++) {
-          final angle = (i / 20) * math.pi * 2;
+        for (var i = 0; i < 8; i++) {
+          final angle = (i / 8) * math.pi * 2;
           outlined.add(
             Transform.translate(
               offset: Offset(
@@ -1067,8 +1169,8 @@ class _EditorScreenState extends State<EditorScreen> {
     }
 
     return Positioned(
-      left: layer.x * widget.project.width,
-      top: layer.y * widget.project.height,
+      left: layer.x * _workspaceWidth,
+      top: layer.y * _workspaceHeight,
       child: FractionalTranslation(
         translation: const Offset(-.5, -.5),
         child: GestureDetector(
@@ -1078,15 +1180,13 @@ class _EditorScreenState extends State<EditorScreen> {
               ? null
               : (_) {
                   _checkpoint();
-                  _autosave();
                 },
           onPanUpdate: layer.locked
               ? null
               : (details) {
-                  setState(() {
-                    layer.x += details.delta.dx / widget.project.width;
-                    layer.y += details.delta.dy / widget.project.height;
-                  });
+                  layer.x += details.delta.dx / _workspaceWidth;
+                  layer.y += details.delta.dy / _workspaceHeight;
+                  _canvasRevision.value++;
                 },
           onPanEnd: layer.locked ? null : (_) => _autosave(),
           child: Transform.rotate(
@@ -1129,9 +1229,13 @@ class _EditorScreenState extends State<EditorScreen> {
         _ => TextAlign.center,
       };
 
-  Widget _buildTools(EditorLayer? selected) {
+  Widget _buildTools(
+    EditorLayer? selected, {
+    ScrollController? scrollController,
+  }) {
     return ListView(
-      padding: const EdgeInsets.all(14),
+      controller: scrollController,
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 8, 16, 28),
       children: [
         Wrap(
           spacing: 8,
@@ -1632,7 +1736,15 @@ class _EditorScreenState extends State<EditorScreen> {
           value: value,
           min: min,
           max: max,
+          onChangeStart: (_) {
+            _continuousEditActive = true;
+            _checkpoint();
+          },
           onChanged: onChanged,
+          onChangeEnd: (_) {
+            _continuousEditActive = false;
+            _autosave();
+          },
         ),
       ],
     );
