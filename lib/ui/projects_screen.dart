@@ -16,6 +16,7 @@ class ProjectsScreen extends StatefulWidget {
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
   Future<List<EditorProject>>? _future;
+  bool _refreshing = false;
 
   bool get _isArabic =>
       Localizations.localeOf(context).languageCode == 'ar';
@@ -29,9 +30,15 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   Future<void> _refresh() async {
-    final next = context.read<AppState>().projects();
-    setState(() => _future = next);
-    await next;
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      final next = context.read<AppState>().projects();
+      setState(() => _future = next);
+      await next;
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
   }
 
   Future<void> _open(EditorProject project) async {
@@ -137,9 +144,15 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     ),
                   ),
                   IconButton(
-                    onPressed: _refresh,
+                    onPressed: _refreshing ? null : _refresh,
                     tooltip: _t('Refresh', 'تحديث'),
-                    icon: const Icon(Icons.refresh),
+                    icon: _refreshing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh_rounded),
                   ),
                 ],
               ),
@@ -187,9 +200,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     )
                   : LayoutBuilder(
                       builder: (context, constraints) {
-                        final columns = constraints.maxWidth >= 920
+                        final columns = constraints.maxWidth >= 1050
                             ? 3
-                            : constraints.maxWidth >= 560
+                            : constraints.maxWidth >= 680
                                 ? 2
                                 : 1;
                         return RefreshIndicator(
@@ -198,9 +211,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                             padding: const EdgeInsetsDirectional.fromSTEB(18, 8, 18, 26),
                             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: columns,
-                              mainAxisSpacing: 14,
-                              crossAxisSpacing: 14,
-                              childAspectRatio: columns == 1 ? 2.15 : 1.18,
+                              mainAxisSpacing: 16,
+                              crossAxisSpacing: 16,
+                              childAspectRatio: columns == 1 ? 1.75 : 1.12,
                             ),
                             itemCount: projects.length,
                             itemBuilder: (context, index) {
@@ -209,65 +222,55 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                 clipBehavior: Clip.antiAlias,
                                 child: InkWell(
                                   onTap: () => _open(project),
-                                  child: Row(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
                                     children: [
-                                      SizedBox(
-                                        width: columns == 1 ? 132 : double.infinity,
-                                        child: columns == 1
-                                            ? _ProjectThumbnail(project: project)
-                                            : null,
-                                      ),
-                                      if (columns != 1)
-                                        Expanded(
-                                          child: _ProjectThumbnail(project: project),
-                                        ),
                                       Expanded(
-                                        flex: columns == 1 ? 3 : 2,
-                                        child: Padding(
-                                          padding: const EdgeInsetsDirectional.fromSTEB(12, 12, 4, 12),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                project.name,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: theme.textTheme.titleSmall?.copyWith(
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 6),
-                                              Text(
-                                                '${project.width} × ${project.height}',
-                                                style: theme.textTheme.labelSmall?.copyWith(
-                                                  color: theme.colorScheme.onSurfaceVariant,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                project.updatedAt.toLocal().toString().split('.').first,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: theme.textTheme.labelSmall?.copyWith(
-                                                  color: theme.colorScheme.onSurfaceVariant,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                                        child: _ProjectThumbnail(project: project),
                                       ),
-                                      PopupMenuButton<String>(
-                                        tooltip: _t('Project options', 'خيارات المشروع'),
-                                        onSelected: (value) {
-                                          if (value == 'delete') _delete(project);
-                                        },
-                                        itemBuilder: (_) => [
-                                          PopupMenuItem(
-                                            value: 'delete',
-                                            child: Text(_t('Delete', 'حذف')),
-                                          ),
-                                        ],
+                                      Padding(
+                                        padding: const EdgeInsetsDirectional.fromSTEB(14, 8, 6, 8),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    project.name,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: theme.textTheme.titleSmall?.copyWith(
+                                                      fontWeight: FontWeight.w800,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 3),
+                                                  Text(
+                                                    '${project.width} × ${project.height}  •  ${project.updatedAt.toLocal().toString().substring(0, 10)}',
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: theme.textTheme.labelSmall?.copyWith(
+                                                      color: theme.colorScheme.onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            PopupMenuButton<String>(
+                                              tooltip: _t('Project options', 'خيارات المشروع'),
+                                              onSelected: (value) {
+                                                if (value == 'delete') _delete(project);
+                                              },
+                                              itemBuilder: (_) => [
+                                                PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Text(_t('Delete', 'حذف')),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -293,16 +296,36 @@ class _ProjectThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand(
+    return Container(
+      width: double.infinity,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: .42),
+      alignment: Alignment.center,
       child: Image.file(
         File(project.originalPath),
-        fit: BoxFit.cover,
-        cacheWidth: 520,
-        cacheHeight: 360,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.contain,
+        cacheWidth: 900,
+        cacheHeight: 700,
         gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => Container(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: const Center(child: Icon(Icons.broken_image_outlined)),
+        errorBuilder: (_, __, ___) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.broken_image_outlined,
+                size: 38,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                Localizations.localeOf(context).languageCode == 'ar'
+                    ? 'تعذر تحميل المعاينة'
+                    : 'Preview unavailable',
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            ],
+          ),
         ),
       ),
     );
