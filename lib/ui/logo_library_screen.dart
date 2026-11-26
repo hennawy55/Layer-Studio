@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import '../models/logo_asset.dart';
+import '../services/image_import_picker.dart';
 import '../state/app_state.dart';
 
 class LogoLibraryScreen extends StatefulWidget {
@@ -18,6 +19,8 @@ class LogoLibraryScreen extends StatefulWidget {
 class _LogoLibraryScreenState extends State<LogoLibraryScreen> {
   Future<List<LogoAsset>>? _logos;
   bool _adding = false;
+  bool _refreshing = false;
+  final _imagePicker = ImageImportPicker();
 
   bool get _isArabic =>
       Localizations.localeOf(context).languageCode == 'ar';
@@ -31,15 +34,19 @@ class _LogoLibraryScreenState extends State<LogoLibraryScreen> {
   }
 
   Future<void> _reload() async {
-    final future = context.read<AppState>().logoLibrary.listLogos();
-    setState(() => _logos = future);
-    await future;
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      final future = context.read<AppState>().logoLibrary.listLogos();
+      setState(() => _logos = future);
+      await future;
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
   }
 
-  Future<void> _addLogo() async {
-    if (_adding) return;
-    setState(() => _adding = true);
-    try {
+  Future<String?> _pickLogoPath() async {
+    if (!Platform.isAndroid) {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: [
@@ -47,12 +54,47 @@ class _LogoLibraryScreenState extends State<LogoLibraryScreen> {
         ],
         allowMultiple: false,
         withData: false,
+        allowCompression: false,
       );
-      if (!mounted || result == null || result.files.single.path == null) return;
+      return result?.files.single.path;
+    }
 
-      await context.read<AppState>().logoLibrary.addLogo(
-            result.files.single.path!,
-          );
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(_t('Choose a photo', 'اختيار صورة')),
+              onTap: () => Navigator.pop(sheetContext, 'photo'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.code_rounded),
+              title: Text(_t('Choose an SVG file', 'اختيار ملف SVG')),
+              onTap: () => Navigator.pop(sheetContext, 'svg'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (choice == 'photo') return _imagePicker.pickImage();
+    if (choice == 'svg') return _imagePicker.pickSvg();
+    return null;
+  }
+
+  Future<void> _addLogo() async {
+    if (_adding) return;
+    setState(() => _adding = true);
+    try {
+      final path = await _pickLogoPath();
+      if (!mounted || path == null) return;
+
+      await context.read<AppState>().logoLibrary.addLogo(path);
       if (!mounted) return;
       await _reload();
       if (mounted) {
@@ -168,6 +210,18 @@ class _LogoLibraryScreenState extends State<LogoLibraryScreen> {
                       ],
                     ),
                   ),
+                  IconButton(
+                    tooltip: _t('Refresh logos', 'تحديث الشعارات'),
+                    onPressed: (_refreshing || _adding) ? null : _reload,
+                    icon: _refreshing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh_rounded),
+                  ),
+                  const SizedBox(width: 4),
                   FilledButton.icon(
                     onPressed: _adding ? null : _addLogo,
                     icon: _adding
