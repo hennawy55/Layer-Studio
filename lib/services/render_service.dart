@@ -11,24 +11,54 @@ import '../models/editor_layer.dart';
 import '../models/editor_project.dart';
 
 class RenderService {
+  static const int _maxExportPixels = 50000000;
+  static const int _maxExportSide = 30000;
+
   Future<ui.Image> _decodeUiImage(String path) async {
     if (path.toLowerCase().endsWith('.svg')) {
       final pictureInfo = await vg.loadPicture(SvgFileLoader(File(path)), null);
       try {
-        final width = pictureInfo.size.width.ceil().clamp(1, 12000).toInt();
-        final height = pictureInfo.size.height.ceil().clamp(1, 12000).toInt();
-        return await pictureInfo.picture.toImage(width, height);
+        final sourceWidth = pictureInfo.size.width.ceil();
+        final sourceHeight = pictureInfo.size.height.ceil();
+        if (sourceWidth <= 0 ||
+            sourceHeight <= 0 ||
+            sourceWidth > 12000 ||
+            sourceHeight > 12000 ||
+            sourceWidth * sourceHeight > _maxExportPixels) {
+          throw const FormatException('Image dimensions are not supported.');
+        }
+        return await pictureInfo.picture.toImage(sourceWidth, sourceHeight);
       } finally {
         pictureInfo.picture.dispose();
       }
     }
 
-    final bytes = await File(path).readAsBytes();
-    final codec = await ui.instantiateImageCodec(bytes);
+    // Read the encoded image header first. This rejects huge files before
+    // allocating a full-resolution decoded bitmap.
+    final buffer = await ui.ImmutableBuffer.fromFilePath(path);
+    final descriptor = await ui.ImageDescriptor.encoded(buffer);
     try {
-      return (await codec.getNextFrame()).image;
+      final width = descriptor.width;
+      final height = descriptor.height;
+      if (width <= 0 ||
+          height <= 0 ||
+          width > _maxExportSide ||
+          height > _maxExportSide ||
+          width * height > _maxExportPixels) {
+        throw const FormatException(
+          'This image is too large to export safely on this device.',
+        );
+      }
+
+      final codec = await descriptor.instantiateCodec();
+      try {
+        return (await codec.getNextFrame()).image;
+      } finally {
+        codec.dispose();
+      }
     } finally {
-      codec.dispose();
+      descriptor.dispose();
+      buffer.dispose();
     }
   }
 
@@ -51,7 +81,7 @@ class RenderService {
     Paint? foreground,
     bool includeShadow = true,
   }) {
-    final containsArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(layer.text);
+    final containsArabic = RegExp(r'[؀-ۿ]').hasMatch(layer.text);
     final shadows = includeShadow &&
             (layer.shadowBlur > 0 ||
                 layer.shadowOffsetX != 0 ||
@@ -103,7 +133,9 @@ class RenderService {
           ..strokeJoin = StrokeJoin.round
           ..strokeWidth = layer.strokeWidth * 2
           ..color = Color(layer.strokeColor).withValues(
-            alpha: (Color(layer.strokeColor).a * layer.opacity).clamp(0.0, 1.0).toDouble(),
+            alpha: (Color(layer.strokeColor).a * layer.opacity)
+                .clamp(0.0, 1.0)
+                .toDouble(),
           ),
       )..layout(maxWidth: imageWidth.toDouble() * 2);
 
@@ -117,7 +149,9 @@ class RenderService {
     final fillPainter = _makeTextPainter(
       layer,
       color: _effectiveTextColor(layer).withValues(
-        alpha: (_effectiveTextColor(layer).a * layer.opacity).clamp(0.0, 1.0),
+        alpha: (_effectiveTextColor(layer).a * layer.opacity)
+            .clamp(0.0, 1.0)
+            .toDouble(),
       ),
     )..layout(maxWidth: imageWidth.toDouble() * 2);
 
@@ -153,7 +187,6 @@ class RenderService {
       height: displayHeight,
     );
 
-    // Shadow follows the non-transparent silhouette of the imported logo.
     if (layer.shadowBlur > 0 ||
         layer.shadowOffsetX != 0 ||
         layer.shadowOffsetY != 0) {
@@ -161,7 +194,9 @@ class RenderService {
         ..filterQuality = FilterQuality.high
         ..colorFilter = ColorFilter.mode(
           Color(layer.shadowColor).withValues(
-            alpha: (Color(layer.shadowColor).a * layer.opacity).clamp(0.0, 1.0).toDouble(),
+            alpha: (Color(layer.shadowColor).a * layer.opacity)
+                .clamp(0.0, 1.0)
+                .toDouble(),
           ),
           BlendMode.srcIn,
         )
@@ -177,17 +212,19 @@ class RenderService {
       );
     }
 
-    // Stroke is rendered around the alpha silhouette rather than as a box.
+    // Fewer high-quality passes keep thick logo outlines from dominating export time.
     if (layer.strokeWidth > 0) {
       final strokePaint = Paint()
         ..filterQuality = FilterQuality.high
         ..colorFilter = ColorFilter.mode(
           Color(layer.strokeColor).withValues(
-            alpha: (Color(layer.strokeColor).a * layer.opacity).clamp(0.0, 1.0),
+            alpha: (Color(layer.strokeColor).a * layer.opacity)
+                .clamp(0.0, 1.0)
+                .toDouble(),
           ),
           BlendMode.srcIn,
         );
-      const samples = 20;
+      const samples = 12;
       for (var i = 0; i < samples; i++) {
         final angle = (i / samples) * 6.283185307179586;
         final dx = layer.strokeWidth * math.cos(angle);
@@ -220,63 +257,52 @@ class RenderService {
     canvas.drawImageRect(overlay, source, destination, paint);
   }
 
-  Future<Uint8List> renderPng(EditorProject project) async {
+  Future<ui.Image> _compose(EditorProject project) async {
     final base = await _decodeUiImage(project.originalPath);
     final width = base.width;
     final height = base.height;
-
-    if (width <= 0 ||
-        height <= 0 ||
-        width > 30000 ||
-        height > 30000 ||
-        width * height > 100000000) {
-      base.dispose();
-      throw const FormatException('Image dimensions are not supported.');
-    }
-
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    canvas.drawImage(
-      base,
-      Offset.zero,
-      Paint()..filterQuality = FilterQuality.high,
-    );
     final loadedImages = <ui.Image>[];
 
     try {
+      canvas.drawImage(
+        base,
+        Offset.zero,
+        Paint()..filterQuality = FilterQuality.high,
+      );
+
       for (final layer in project.layers) {
         if (!layer.visible || layer.opacity <= 0) continue;
 
         canvas.save();
-        canvas.translate(layer.x * width, layer.y * height);
-        canvas.rotate(layer.rotation);
-        canvas.scale(layer.scale);
-        canvas.scale(layer.flipX ? -1.0 : 1.0, layer.flipY ? -1.0 : 1.0);
+        try {
+          canvas.translate(layer.x * width, layer.y * height);
+          canvas.rotate(layer.rotation);
+          canvas.scale(layer.scale);
+          canvas.scale(
+            layer.flipX ? -1.0 : 1.0,
+            layer.flipY ? -1.0 : 1.0,
+          );
 
-        if (layer.type == LayerType.image && layer.assetPath != null) {
-          final file = File(layer.assetPath!);
-          if (await file.exists()) {
-            final overlay = await _decodeUiImage(file.path);
-            loadedImages.add(overlay);
-            _drawImageLayer(canvas, layer, overlay, width, height);
+          if (layer.type == LayerType.image && layer.assetPath != null) {
+            final file = File(layer.assetPath!);
+            if (await file.exists()) {
+              final overlay = await _decodeUiImage(file.path);
+              loadedImages.add(overlay);
+              _drawImageLayer(canvas, layer, overlay, width, height);
+            }
+          } else if (layer.type == LayerType.text) {
+            _drawText(canvas, layer, width);
           }
-        } else if (layer.type == LayerType.text) {
-          _drawText(canvas, layer, width);
+        } finally {
+          canvas.restore();
         }
-
-        canvas.restore();
       }
 
       final picture = recorder.endRecording();
       try {
-        final rendered = await picture.toImage(width, height);
-        try {
-          final data = await rendered.toByteData(format: ui.ImageByteFormat.png);
-          if (data == null) throw StateError('Unable to encode rendered image.');
-          return data.buffer.asUint8List();
-        } finally {
-          rendered.dispose();
-        }
+        return await picture.toImage(width, height);
       } finally {
         picture.dispose();
       }
@@ -288,30 +314,77 @@ class RenderService {
     }
   }
 
+  Future<Uint8List> renderPng(EditorProject project) async {
+    final rendered = await _compose(project);
+    try {
+      final data = await rendered.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      if (data == null) {
+        throw StateError('Unable to encode rendered image.');
+      }
+      return data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
+    } finally {
+      rendered.dispose();
+    }
+  }
+
   Future<Uint8List> render(
     EditorProject project, {
     required String extension,
     int jpegQuality = 95,
     int webpQuality = 95,
   }) async {
-    final pngBytes = await renderPng(project);
     final normalized = extension.toLowerCase().replaceFirst('.', '');
-    if (normalized == 'png') return pngBytes;
+    if (normalized == 'png') return renderPng(project);
 
-    final decoded = img.decodeImage(pngBytes);
-    if (decoded == null) throw StateError('Unable to encode rendered image.');
-
-    if (normalized == 'jpg' || normalized == 'jpeg') {
-      return img.encodeJpg(decoded, quality: jpegQuality.clamp(1, 100).toInt());
+    if (normalized != 'jpg' &&
+        normalized != 'jpeg' &&
+        normalized != 'webp') {
+      throw FormatException('Unsupported export format: $extension');
     }
-    if (normalized == 'webp') {
-      return img.encodeWebP(
-        decoded,
-        lossless: false,
-        quality: webpQuality.clamp(1, 100).toInt(),
+
+    // JPEG/WebP are encoded from raw pixels. This avoids creating a large
+    // intermediate PNG and decoding it again on memory-constrained phones.
+    final rendered = await _compose(project);
+    try {
+      final data = await rendered.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
       );
+      if (data == null) {
+        throw StateError('Unable to read rendered image pixels.');
+      }
+
+      final raster = img.Image.fromBytes(
+        width: rendered.width,
+        height: rendered.height,
+        bytes: data.buffer,
+        bytesOffset: data.offsetInBytes,
+        numChannels: 4,
+        order: img.ChannelOrder.rgba,
+      );
+
+      if (normalized == 'jpg' || normalized == 'jpeg') {
+        return Uint8List.fromList(
+          img.encodeJpg(
+            raster,
+            quality: jpegQuality.clamp(1, 100).toInt(),
+          ),
+        );
+      }
+      return Uint8List.fromList(
+        img.encodeWebP(
+          raster,
+          lossless: false,
+          quality: webpQuality.clamp(1, 100).toInt(),
+        ),
+      );
+    } finally {
+      rendered.dispose();
     }
-    throw FormatException('Unsupported export format: $extension');
   }
 
   Future<void> export(
