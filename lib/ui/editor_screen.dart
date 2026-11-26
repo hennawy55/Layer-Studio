@@ -890,16 +890,20 @@ class _EditorScreenState extends State<EditorScreen> {
                 ),
               ],
             ),
-            IconButton(
-              tooltip: _t('Save', 'حفظ'),
-              onPressed: _saving ? null : _saveNow,
+            FilledButton.tonalIcon(
+              onPressed: (!_baseLoaded || _saving) ? null : _saveNow,
               icon: _saving
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 17,
+                      height: 17,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.save_outlined),
+                  : const Icon(Icons.save_outlined, size: 19),
+              label: Text(_t('Save', 'حفظ')),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
             ),
             IconButton(
               tooltip: _t('Export', 'تصدير'),
