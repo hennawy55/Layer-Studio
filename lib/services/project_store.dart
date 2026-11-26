@@ -17,6 +17,16 @@ class ProjectStore {
     final base = await getApplicationSupportDirectory();
     root = Directory(p.join(base.path, 'LayerStudio', 'projects'));
     await root.create(recursive: true);
+
+    // Drafts have no project.json and are intentionally not recoverable after
+    // an app restart. Remove their temporary files without touching saved work.
+    await for (final entity in root.list()) {
+      if (entity is! Directory) continue;
+      final metadata = File(p.join(entity.path, 'project.json'));
+      if (!await metadata.exists()) {
+        await entity.delete(recursive: true);
+      }
+    }
   }
 
   Future<Directory> _folder(String id) async {
@@ -66,13 +76,9 @@ class ProjectStore {
     }
   }
 
-  /// Compatibility helper for callers that explicitly want an immediately
-  /// persisted project. The UI creates drafts instead.
-  Future<EditorProject> create(String imagePath) async {
-    final project = await createDraft(imagePath);
-    await save(project);
-    return project;
-  }
+  /// Creates a new draft. Nothing is added to the saved-project index until
+  /// save() is explicitly called by the user.
+  Future<EditorProject> create(String imagePath) => createDraft(imagePath);
 
   Future<Directory> assetsDirectory(String projectId) async {
     final folder = await _folder(projectId);
