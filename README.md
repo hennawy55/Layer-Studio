@@ -3,12 +3,15 @@
 Offline-first, non-destructive image composition editor for Android and Windows, built with Flutter.
 
 ## Features
-- Add text, raster image and SVG logo layers over a photo. Raster imports are normalized using EXIF orientation before preview and export.
+- Add text, raster image and SVG logo layers over a photo. Raster imports are normalized off the UI thread, with EXIF orientation applied before use.
+- Keep frequently used logos in a persistent on-device library and add them to any project without searching through the photo gallery.
 - Move, scale, rotate, reorder, hide, lock, and delete layers.
 - Edit text with 24 embedded Arabic/Latin fonts, set colour, weight, italic and alignment.
 - Arabic and English interface with RTL/LTR support.
 - Light, dark and system themes.
-- Local projects; original images and overlays are copied to app-owned storage.
+- Custom Android launcher and Windows application icons.
+- Local projects; original images and overlays are copied to app-owned storage. JPEG photos remain compressed instead of being expanded into oversized PNG copies.
+- A streamlined mobile editor with an expandable tools drawer, a larger canvas area, cached previews and isolated layer repaints.
 - Autosave, manual save, rename, reopen, delete, undo and redo.
 - Export PNG, JPEG and WebP at the source image dimensions.
 - Android saves to a dedicated Layer Studio gallery album; Windows uses a Save As dialog.
@@ -23,7 +26,7 @@ The GitHub Actions workflow validates, runs tests, and builds:
 - Windows x64 application ZIP
 - Windows x64 Setup installer
 
-Run it from the **Actions** tab or push to `main`. Push a version tag such as `v1.0.0` to publish a GitHub Release.
+Run it from the **Actions** tab or push to `main`. Push a version tag such as `v1.1.0` to publish a GitHub Release.
 
 ## Important notes
 - First-time developer builds need internet access for Flutter dependencies and for downloading licensed fonts. Font files are embedded in the final app, which then works offline.
