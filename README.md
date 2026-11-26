@@ -12,7 +12,7 @@ Offline-first, non-destructive image composition editor for Android and Windows,
 - Custom Android launcher and Windows application icons.
 - Local projects; original images and overlays are copied to app-owned storage. JPEG photos remain compressed instead of being expanded into oversized PNG copies.
 - A streamlined mobile editor with an expandable tools drawer, a larger canvas area, cached previews and isolated layer repaints.
-- Autosave, manual save, rename, reopen, delete, undo and redo.
+- Explicit save only: changes stay in memory until the user saves; new projects remain drafts until then. Rename, reopen, delete, undo and redo are supported.
 - Export PNG, JPEG and WebP at the source image dimensions.
 - Android saves to a dedicated Layer Studio gallery album; Windows uses a Save As dialog.
 - No account, remote database, analytics or runtime internet dependency.
